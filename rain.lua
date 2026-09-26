@@ -995,6 +995,296 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
+local meteorEnabled = false
+local meteorBtn = nil
+local meteorRunning = false
+
+local METEOR_COOLDOWN = 25
+local lastMeteorUse = -999
+
+local function createCrater(pos)
+    local craterFolder = Instance.new("Folder")
+    craterFolder.Name = "MeteorCrater"
+    craterFolder.Parent = workspace
+
+    for i = 1, 16 do
+        local angle = (i / 16) * math.pi * 2
+        local length = 3 + math.random() * 6
+        local crack = Instance.new("Part")
+        crack.Size = Vector3.new(length, 0.15, 0.4)
+        crack.Anchored = true
+        crack.CanCollide = false
+        crack.CanTouch = false
+        crack.CanQuery = false
+        crack.Massless = true
+        crack.Material = Enum.Material.Neon
+        crack.Color = Color3.fromRGB(60, 10, 5)
+        crack.Transparency = 0.2
+        crack.Parent = craterFolder
+        crack.CFrame = CFrame.new(pos + Vector3.new(math.cos(angle) * length / 2, 0.1, math.sin(angle) * length / 2)) * CFrame.Angles(0, -angle, 0)
+    end
+
+    for i = 1, 30 do
+        local angle = math.random() * math.pi * 2
+        local distance = 2 + math.random() * 12
+        local shard = Instance.new("Part")
+        shard.Shape = Enum.PartType.Block
+        shard.Size = Vector3.new(math.random() * 6 + 2, math.random() * 6 + 2, math.random() * 6 + 2)
+        shard.Anchored = true
+        shard.CanCollide = false
+        shard.CanTouch = false
+        shard.CanQuery = false
+        shard.Massless = true
+        shard.Material = Enum.Material.Neon
+        shard.Color = Color3.fromRGB(math.random(80, 200), math.random(20, 70), math.random(5, 30))
+        shard.Transparency = 0.15
+        shard.Parent = craterFolder
+        shard.CFrame = CFrame.new(pos + Vector3.new(math.cos(angle) * distance, 0.5, math.sin(angle) * distance)) * CFrame.Angles(math.random() * 3, math.random() * 3, math.random() * 3)
+        local light = Instance.new("PointLight")
+        light.Color = Color3.fromRGB(255, 80, 20)
+        light.Range = 6
+        light.Brightness = 2
+        light.Parent = shard
+    end
+
+    local lightPart = Instance.new("Part")
+    lightPart.Size = Vector3.new(0.1, 0.1, 0.1)
+    lightPart.Anchored = true
+    lightPart.CanCollide = false
+    lightPart.CanTouch = false
+    lightPart.CanQuery = false
+    lightPart.Transparency = 1
+    lightPart.Parent = craterFolder
+    lightPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+
+    local craterLight = Instance.new("PointLight")
+    craterLight.Color = Color3.fromRGB(255, 100, 30)
+    craterLight.Range = 30
+    craterLight.Brightness = 5
+    craterLight.Parent = lightPart
+
+    return craterFolder
+end
+
+local function runMeteor()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local lockedPos = hrp.Position
+
+    local randomAngle = math.random() * math.pi * 2
+    local targetPos = lockedPos + Vector3.new(
+        math.cos(randomAngle) * 25,
+        0,
+        math.sin(randomAngle) * 25
+    )
+
+    local startPos = targetPos + Vector3.new(
+        (math.random() - 0.5) * 300,
+        300,
+        (math.random() - 0.5) * 300
+    )
+
+    local meteorFolder = Instance.new("Folder")
+    meteorFolder.Name = "Meteor"
+    meteorFolder.Parent = workspace
+
+    local meteorCenter = Instance.new("Part")
+    meteorCenter.Size = Vector3.new(1, 1, 1)
+    meteorCenter.Anchored = true
+    meteorCenter.CanCollide = false
+    meteorCenter.CanTouch = false
+    meteorCenter.CanQuery = false
+    meteorCenter.Massless = true
+    meteorCenter.Transparency = 1
+    meteorCenter.Parent = meteorFolder
+    meteorCenter.CFrame = CFrame.new(startPos)
+
+    local cubeCount = 250
+    local cubes = {}
+
+    for i = 1, cubeCount do
+        local cube = Instance.new("Part")
+        cube.Shape = Enum.PartType.Block
+        cube.Size = Vector3.new(
+            math.random() * 4 + 2,
+            math.random() * 4 + 2,
+            math.random() * 4 + 2
+        )
+        cube.Anchored = true
+        cube.CanCollide = false
+        cube.CanTouch = false
+        cube.CanQuery = false
+        cube.Massless = true
+        cube.Material = Enum.Material.Neon
+        local heat = math.random()
+        cube.Color = Color3.fromRGB(
+            math.floor(60 + heat * 195),
+            math.floor(20 + heat * 80),
+            math.floor(5 + heat * 20)
+        )
+        cube.Transparency = 0.05 + math.random() * 0.15
+        cube.Parent = meteorFolder
+
+        local light = nil
+        if math.random() > 0.7 then
+            light = Instance.new("PointLight")
+            light.Color = Color3.fromRGB(255, 100, 30)
+            light.Range = 8
+            light.Brightness = 2
+            light.Parent = cube
+        end
+
+        local offset = Vector3.new(
+            (math.random() - 0.5) * 16,
+            (math.random() - 0.5) * 16,
+            (math.random() - 0.5) * 16
+        )
+
+        table.insert(cubes, {
+            part = cube,
+            offset = offset,
+            light = light,
+            spin = Vector3.new(
+                math.random() * 2 - 1,
+                math.random() * 2 - 1,
+                math.random() * 2 - 1
+            ) * 2,
+        })
+    end
+
+    local trailAttach0 = Instance.new("Attachment")
+    trailAttach0.Position = Vector3.new(0, 8, 0)
+    trailAttach0.Parent = meteorCenter
+
+    local trailAttach1 = Instance.new("Attachment")
+    trailAttach1.Position = Vector3.new(0, -8, 0)
+    trailAttach1.Parent = meteorCenter
+
+    local meteorTrail = Instance.new("Trail")
+    meteorTrail.Attachment0 = trailAttach0
+    meteorTrail.Attachment1 = trailAttach1
+    meteorTrail.Lifetime = 1.5
+    meteorTrail.MinLength = 0
+    meteorTrail.WidthScale = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 2),
+        NumberSequenceKeypoint.new(0.5, 1),
+        NumberSequenceKeypoint.new(1, 0),
+    })
+    meteorTrail.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 150)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 120, 30)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 30, 10)),
+    })
+    meteorTrail.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.2),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    meteorTrail.LightEmission = 1
+    meteorTrail.LightInfluence = 0
+    meteorTrail.FaceCamera = true
+    meteorTrail.Parent = meteorCenter
+
+    local oldCameraType = camera.CameraType
+    local oldCameraSubject = camera.CameraSubject
+
+    camera.CameraType = Enum.CameraType.Scriptable
+
+    local flightTime = 2.5
+    local elapsed = 0
+    local shakeTime = 0
+
+    while elapsed < flightTime do
+        local dt = RunService.RenderStepped:Wait()
+        elapsed = elapsed + dt
+
+        local t = elapsed / flightTime
+        local easeT = t * t
+
+        local currentPos = startPos:Lerp(targetPos, easeT)
+
+        local dir = (targetPos - currentPos)
+        if dir.Magnitude > 0.1 then
+            meteorCenter.CFrame = CFrame.lookAt(currentPos, currentPos + dir.Unit)
+        else
+            meteorCenter.CFrame = CFrame.new(currentPos)
+        end
+
+        for _, c in ipairs(cubes) do
+            local rotatedOffset = meteorCenter.CFrame:VectorToWorldSpace(c.offset)
+            c.part.CFrame = CFrame.new(currentPos + rotatedOffset) * CFrame.Angles(
+                elapsed * c.spin.X,
+                elapsed * c.spin.Y,
+                elapsed * c.spin.Z
+            )
+        end
+
+        local camPos = currentPos + Vector3.new(30, 20, 30)
+        camera.CFrame = CFrame.lookAt(camPos, currentPos)
+
+        if elapsed > flightTime - 1 then
+            shakeTime = shakeTime + dt
+            local shakeAmount = (shakeTime / 1) * 0.8
+            camera.CFrame = camera.CFrame * CFrame.Angles(
+                (math.random() - 0.5) * shakeAmount,
+                (math.random() - 0.5) * shakeAmount,
+                (math.random() - 0.5) * shakeAmount
+            )
+        end
+    end
+
+    for _, c in ipairs(cubes) do
+        if c.part then
+            c.part.CFrame = CFrame.new(targetPos + c.offset * 0.5) * CFrame.Angles(
+                math.random() * 6,
+                math.random() * 6,
+                math.random() * 6
+            )
+        end
+    end
+
+    camera.CFrame = camera.CFrame * CFrame.Angles(
+        (math.random() - 0.5) * 1.5,
+        (math.random() - 0.5) * 1.5,
+        (math.random() - 0.5) * 1.5
+    )
+
+    createCrater(targetPos)
+
+    local blackGui = Instance.new("ScreenGui")
+    blackGui.Name = "MeteorBlack"
+    blackGui.ResetOnSpawn = false
+    blackGui.IgnoreGuiInset = true
+    blackGui.DisplayOrder = 99999
+    blackGui.Parent = player:WaitForChild("PlayerGui")
+
+    local blackFrame = Instance.new("Frame")
+    blackFrame.Size = UDim2.fromScale(1, 1)
+    blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    blackFrame.BackgroundTransparency = 0
+    blackFrame.BorderSizePixel = 0
+    blackFrame.Parent = blackGui
+
+    task.wait(2)
+
+    TweenService:Create(blackFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 1,
+    }):Play()
+
+    task.wait(0.9)
+
+    blackGui:Destroy()
+
+    camera.CameraType = oldCameraType
+    camera.CameraSubject = oldCameraSubject
+
+    task.wait(0.3)
+
+    meteorFolder:Destroy()
+end
+
 local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false }
 local pg = player:WaitForChild("PlayerGui")
 
@@ -1008,11 +1298,11 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 6
+local NUM_BUTTONS = 7
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
-local MAX_SCREEN_HEIGHT_RATIO = 0.7
+local MAX_SCREEN_HEIGHT_RATIO = 0.75
 local screenHeight = camera.ViewportSize.Y
 local maxFrameHeight = math.floor(screenHeight * MAX_SCREEN_HEIGHT_RATIO)
 local desiredFrameHeight = HEADER_HEIGHT + contentHeight + 24
@@ -1096,6 +1386,114 @@ portalBtnLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 portalBtnLabel.TextScaled = true
 portalBtnLabel.Font = Enum.Font.GothamBold
 portalBtnLabel.Parent = portalBtn
+
+local meteorBtnUi = Instance.new("TextButton")
+meteorBtnUi.Name = "MeteorBtn"
+meteorBtnUi.AnchorPoint = Vector2.new(1, 0.5)
+meteorBtnUi.Position = UDim2.new(1, -20, 0.5, -90)
+meteorBtnUi.Size = UDim2.new(0, 70, 0, 70)
+meteorBtnUi.BackgroundColor3 = Color3.fromRGB(90, 30, 10)
+meteorBtnUi.BackgroundTransparency = 0.1
+meteorBtnUi.BorderSizePixel = 0
+meteorBtnUi.Text = "🪨"
+meteorBtnUi.TextColor3 = Color3.fromRGB(255, 255, 255)
+meteorBtnUi.TextSize = 34
+meteorBtnUi.Font = Enum.Font.GothamBold
+meteorBtnUi.AutoButtonColor = false
+meteorBtnUi.Visible = false
+meteorBtnUi.Parent = screenGui
+
+local meteorBtnUiCorner = Instance.new("UICorner")
+meteorBtnUiCorner.CornerRadius = UDim.new(0, 20)
+meteorBtnUiCorner.Parent = meteorBtnUi
+
+local meteorBtnUiStroke = Instance.new("UIStroke")
+meteorBtnUiStroke.Thickness = 2.5
+meteorBtnUiStroke.Color = Color3.fromRGB(255, 120, 40)
+meteorBtnUiStroke.Transparency = 0.2
+meteorBtnUiStroke.Parent = meteorBtnUi
+
+local meteorBtnUiGrad = Instance.new("UIGradient")
+meteorBtnUiGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 200, 50)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 50, 20)),
+})
+meteorBtnUiGrad.Rotation = 45
+meteorBtnUiGrad.Parent = meteorBtnUiStroke
+
+local meteorBtnUiLabel = Instance.new("TextLabel")
+meteorBtnUiLabel.AnchorPoint = Vector2.new(0.5, 1)
+meteorBtnUiLabel.Position = UDim2.new(0.5, 0, 1, -4)
+meteorBtnUiLabel.Size = UDim2.new(1, 0, 0, 14)
+meteorBtnUiLabel.BackgroundTransparency = 1
+meteorBtnUiLabel.Text = "METEOR"
+meteorBtnUiLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+meteorBtnUiLabel.TextScaled = true
+meteorBtnUiLabel.Font = Enum.Font.GothamBold
+meteorBtnUiLabel.Parent = meteorBtnUi
+
+local meteorCooldownLabel = Instance.new("TextLabel")
+meteorCooldownLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+meteorCooldownLabel.Position = UDim2.fromScale(0.5, 0.45)
+meteorCooldownLabel.Size = UDim2.fromScale(0.8, 0.6)
+meteorCooldownLabel.BackgroundTransparency = 1
+meteorCooldownLabel.Text = ""
+meteorCooldownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+meteorCooldownLabel.TextScaled = true
+meteorCooldownLabel.Font = Enum.Font.GothamBold
+meteorCooldownLabel.ZIndex = 10
+meteorCooldownLabel.Visible = false
+meteorCooldownLabel.Parent = meteorBtnUi
+
+local meteorCooldownStroke = Instance.new("UIStroke")
+meteorCooldownStroke.Thickness = 2
+meteorCooldownStroke.Color = Color3.fromRGB(0, 0, 0)
+meteorCooldownStroke.Transparency = 0.3
+meteorCooldownStroke.Parent = meteorCooldownLabel
+
+meteorBtn = meteorBtnUi
+
+meteorBtnUi.MouseEnter:Connect(function()
+    TweenService:Create(meteorBtnUi, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
+end)
+meteorBtnUi.MouseLeave:Connect(function()
+    if not meteorCooldownLabel.Visible then
+        TweenService:Create(meteorBtnUi, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
+    end
+end)
+
+meteorBtnUi.MouseButton1Click:Connect(function()
+    if not meteorEnabled or meteorRunning then return end
+    local now = tick()
+    if now - lastMeteorUse < METEOR_COOLDOWN then return end
+    lastMeteorUse = now
+    meteorRunning = true
+    pcall(function()
+        runMeteor()
+    end)
+    meteorRunning = false
+end)
+
+task.spawn(function()
+    while meteorBtnUi.Parent do
+        task.wait(0.05)
+        local remaining = METEOR_COOLDOWN - (tick() - lastMeteorUse)
+        if remaining > 0 and remaining <= METEOR_COOLDOWN then
+            meteorBtnUi.Text = ""
+            meteorCooldownLabel.Visible = true
+            meteorCooldownLabel.Text = tostring(math.ceil(remaining))
+            meteorBtnUi.BackgroundColor3 = Color3.fromRGB(50, 20, 10)
+            meteorBtnUi.BackgroundTransparency = 0.35
+        else
+            if meteorCooldownLabel.Visible then
+                meteorCooldownLabel.Visible = false
+                meteorBtnUi.Text = "🪨"
+                meteorBtnUi.BackgroundColor3 = Color3.fromRGB(90, 30, 10)
+                meteorBtnUi.BackgroundTransparency = 0.1
+            end
+        end
+    end
+end)
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -1456,6 +1854,13 @@ makeToggle("Портал", "🌀", "Portal", false, function(state)
     end
 end)
 
+makeToggle("Метеорит", "🪨", "Meteor", false, function(state)
+    meteorEnabled = state
+    if meteorBtn then
+        meteorBtn.Visible = state
+    end
+end)
+
 portalBtn.MouseButton1Click:Connect(function()
     if not portalEnabled then return end
     placingMode = not placingMode
@@ -1576,4 +1981,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-print("Rain Visual loaded")
+print("Rain Visual + Meteor loaded")
