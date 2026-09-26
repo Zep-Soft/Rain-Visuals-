@@ -312,22 +312,22 @@ local function updateAuraPulse(dt)
     pulseState.phaseTime = pulseState.phaseTime + dt
 
     if pulseState.phase == "inhale" then
-        local t = math.min(1, pulseState.phaseTime / 0.05)
+        local t = math.min(1, pulseState.phaseTime / 0.3)
         for _, a in ipairs(auraParts) do
             a.radius = pulseState.startRadius + (2.8 - pulseState.startRadius) * t
         end
-        if pulseState.phaseTime >= 0.05 then
+        if pulseState.phaseTime >= 0.3 then
             pulseState.phase = "exhale"
             pulseState.phaseTime = 0
         end
 
     elseif pulseState.phase == "exhale" then
-        local t = math.min(1, pulseState.phaseTime / 0.3)
+        local t = math.min(1, pulseState.phaseTime / 1.2)
         local e = 1 - (1 - t) * (1 - t)
         for _, a in ipairs(auraParts) do
             a.radius = 2.8 + (9 - 2.8) * e
         end
-        if pulseState.phaseTime >= 0.3 then
+        if pulseState.phaseTime >= 1.2 then
             pulseState.phase = "jitter"
             pulseState.phaseTime = 0
             pulseState.jitterTimer = 0
@@ -341,19 +341,19 @@ local function updateAuraPulse(dt)
                 a.radius = 2.5 + math.random() * 8
             end
         end
-        if pulseState.phaseTime >= 0.7 then
+        if pulseState.phaseTime >= 2.0 then
             pulseState.phase = "return"
             pulseState.phaseTime = 0
         end
 
     elseif pulseState.phase == "return" then
-        local t = math.min(1, pulseState.phaseTime / 0.3)
+        local t = math.min(1, pulseState.phaseTime / 0.5)
         local e = t * t
         for _, a in ipairs(auraParts) do
             local targetR = a.baseRadius or auraRadius
             a.radius = a.radius + (targetR - a.radius) * e
         end
-        if pulseState.phaseTime >= 0.3 then
+        if pulseState.phaseTime >= 0.5 then
             for _, a in ipairs(auraParts) do
                 a.radius = a.baseRadius or auraRadius
             end
@@ -971,7 +971,9 @@ local meteorBtn = nil
 local meteorRunning = false
 
 local METEOR_COOLDOWN = 25
+local METEOR_LOCK_AFTER = 3
 local lastMeteorUse = -999
+local meteorLockedUntil = 0
 
 local buffEnabled = false
 local buffBtn = nil
@@ -985,7 +987,6 @@ local BUFF_SPEED = 25
 local BUFF_DEFAULT_SPEED = 16
 local BUFF_HEALTH_COST = 30
 local BUFF_LOCK_AFTER = 3
-local meteorLockedUntil = 0
 
 local function createCrater(pos)
     local craterFolder = Instance.new("Folder")
@@ -1411,7 +1412,7 @@ local function triggerBuff()
 
     triggerAuraPulse()
 
-    local totalDuration = 0.05 + 0.3 + 0.7 + 0.3
+    local totalDuration = 4.0
 
     runBuffCamera(totalDuration, function()
         local c = player.Character
@@ -1613,7 +1614,7 @@ meteorBtn = meteorBtnUi
 local buffBtnUi = Instance.new("TextButton")
 buffBtnUi.Name = "BuffBtn"
 buffBtnUi.AnchorPoint = Vector2.new(1, 0.5)
-buffBtnUi.Position = UDim2.new(1, -20, 0.5, -180)
+buffBtnUi.Position = UDim2.new(1, -20, 0.5, 90)
 buffBtnUi.Size = UDim2.new(0, 70, 0, 70)
 buffBtnUi.BackgroundColor3 = Color3.fromRGB(120, 100, 20)
 buffBtnUi.BackgroundTransparency = 0.1
@@ -1687,16 +1688,19 @@ end)
 
 meteorBtnUi.MouseButton1Click:Connect(function()
     if not meteorEnabled or meteorRunning then return end
-    if tick() < buffLockedUntil then return end
+    if tick() < meteorLockedUntil then return end
+    if buffRunning then return end
     local now = tick()
     if now - lastMeteorUse < METEOR_COOLDOWN then return end
     lastMeteorUse = now
     meteorRunning = true
+    buffLockedUntil = tick() + METEOR_LOCK_AFTER
     pcall(function()
         runMeteor()
     end)
     meteorRunning = false
-    buffLockedUntil = tick() + BUFF_LOCK_AFTER
+    meteorLockedUntil = tick() + METEOR_LOCK_AFTER
+    buffLockedUntil = tick() + METEOR_LOCK_AFTER
 end)
 
 task.spawn(function()
