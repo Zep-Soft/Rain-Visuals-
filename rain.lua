@@ -58,6 +58,7 @@ local function createLayer(count, size, speed, spread, height, useLight)
             light.Brightness = 1.5
             light.Parent = p
         end
+        local spd = speed + math.random(-30, 30)
         table.insert(layer, {
             part = p,
             hue = math.random(),
@@ -65,7 +66,8 @@ local function createLayer(count, size, speed, spread, height, useLight)
             offsetZ = (math.random() - 0.5) * spread * 2,
             offsetY = math.random() * height,
             baseSpeed = speed,
-            speed = speed + math.random(-30, 30),
+            speed = spd,
+            originalSpeed = spd,
             slantOffsetX = 0,
             spread = spread,
             maxHeight = height,
@@ -2136,19 +2138,19 @@ task.spawn(function()
             for _, d in ipairs(dropsFar) do
                 local g = math.random(80, 255)
                 d.part.Color = Color3.fromRGB(0, g, 0)
-                d.speed = d.baseSpeed * 1.5
+                d.speed = d.originalSpeed * 1.5
             end
             for _, d in ipairs(dropsNear) do
                 local g = math.random(80, 255)
                 d.part.Color = Color3.fromRGB(0, g, 0)
-                d.speed = d.baseSpeed * 1.5
+                d.speed = d.originalSpeed * 1.5
             end
         else
             for _, d in ipairs(dropsFar) do
-                d.speed = d.baseSpeed
+                d.speed = d.originalSpeed
             end
             for _, d in ipairs(dropsNear) do
-                d.speed = d.baseSpeed
+                d.speed = d.originalSpeed
             end
         end
         for _, a in ipairs(auraParts) do
@@ -2200,9 +2202,7 @@ end)
 
 local toggleDrag = false
 local toggleDragStart
-local toggleStartPos
-
-toggleBtn.InputBegan:Connect(function(input)
+local toggleStartPostoggleBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         toggleDrag = true
         toggleDragStart = input.Position
