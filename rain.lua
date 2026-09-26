@@ -1444,7 +1444,7 @@ local function triggerBuff()
 	end)
 end
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false }
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Events = false }
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -1458,7 +1458,7 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 8
+local NUM_BUTTONS = 9
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
@@ -1501,6 +1501,31 @@ toggleGrad.Color = ColorSequence.new({
 })
 toggleGrad.Rotation = 45
 toggleGrad.Parent = toggleStroke
+
+local eventBadge = Instance.new("TextLabel")
+eventBadge.Name = "EventBadge"
+eventBadge.AnchorPoint = Vector2.new(0.5, 0.5)
+eventBadge.Position = UDim2.new(0.5, 0, 0.5, -15)
+eventBadge.Size = UDim2.new(0, 300, 0, 40)
+eventBadge.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+eventBadge.BackgroundTransparency = 0.3
+eventBadge.BorderSizePixel = 0
+eventBadge.Text = ""
+eventBadge.TextColor3 = Color3.fromRGB(255, 255, 255)
+eventBadge.TextSize = 20
+eventBadge.Font = Enum.Font.GothamBold
+eventBadge.Visible = false
+eventBadge.Parent = screenGui
+
+local eventBadgeCorner = Instance.new("UICorner")
+eventBadgeCorner.CornerRadius = UDim.new(0, 12)
+eventBadgeCorner.Parent = eventBadge
+
+local eventBadgeStroke = Instance.new("UIStroke")
+eventBadgeStroke.Thickness = 2
+eventBadgeStroke.Color = Color3.fromRGB(255, 150, 80)
+eventBadgeStroke.Transparency = 0.3
+eventBadgeStroke.Parent = eventBadge
 
 local portalBtn = Instance.new("TextButton")
 portalBtn.Name = "PortalBtn"
@@ -1985,6 +2010,7 @@ local function makeToggle(name, icon, key, initial, callback)
 		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.6}):Play()
 	end)
 	btn.MouseButton1Click:Connect(function() setState(not state) end)
+	return setState
 end
 
 local function makeModeToggle(name, icon)
@@ -2079,6 +2105,109 @@ local function makeModeToggle(name, icon)
 	end)
 end
 
+local function makeEventToggle(name, icon, key, initial, description, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+	btn.BackgroundTransparency = 0.1
+	btn.BorderSizePixel = 0
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.Parent = listFrame
+	local bC = Instance.new("UICorner")
+	bC.CornerRadius = UDim.new(0, 12)
+	bC.Parent = btn
+	local bS = Instance.new("UIStroke")
+	bS.Thickness = 1.5
+	bS.Color = Color3.fromRGB(255, 180, 100)
+	bS.Transparency = 0.6
+	bS.Parent = btn
+	local iB = Instance.new("Frame")
+	iB.AnchorPoint = Vector2.new(0, 0.5)
+	iB.Position = UDim2.new(0, 12, 0.5, 0)
+	iB.Size = UDim2.new(0, 34, 0, 34)
+	iB.BackgroundColor3 = Color3.fromRGB(50, 35, 35)
+	iB.BackgroundTransparency = 0.2
+	iB.BorderSizePixel = 0
+	iB.Parent = btn
+	local iC = Instance.new("UICorner")
+	iC.CornerRadius = UDim.new(0, 10)
+	iC.Parent = iB
+	local iL = Instance.new("TextLabel")
+	iL.Size = UDim2.new(1, 0, 1, 0)
+	iL.BackgroundTransparency = 1
+	iL.Text = icon
+	iL.TextScaled = true
+	iL.Font = Enum.Font.GothamBold
+	iL.Parent = iB
+	local lbl = Instance.new("TextLabel")
+	lbl.AnchorPoint = Vector2.new(0, 0.5)
+	lbl.Position = UDim2.new(0, 58, 0.5, -8)
+	lbl.Size = UDim2.new(0.6, 0, 0, 18)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = name
+	lbl.TextColor3 = Color3.fromRGB(235, 235, 245)
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextSize = 15
+	lbl.Font = Enum.Font.GothamMedium
+	lbl.Parent = btn
+	local desc = Instance.new("TextLabel")
+	desc.AnchorPoint = Vector2.new(0, 0.5)
+	desc.Position = UDim2.new(0, 58, 0.5, 8)
+	desc.Size = UDim2.new(0.6, 0, 0, 14)
+	desc.BackgroundTransparency = 1
+	desc.Text = description
+	desc.TextColor3 = Color3.fromRGB(200, 200, 200)
+	desc.TextTransparency = 0.5
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	desc.TextSize = 11
+	desc.Font = Enum.Font.Gotham
+	desc.Parent = btn
+	local sF = Instance.new("Frame")
+	sF.AnchorPoint = Vector2.new(1, 0.5)
+	sF.Position = UDim2.new(1, -12, 0.5, 0)
+	sF.Size = UDim2.new(0, 66, 0, 32)
+	sF.BackgroundColor3 = initial and Color3.fromRGB(60, 180, 100) or Color3.fromRGB(180, 60, 80)
+	sF.BorderSizePixel = 0
+	sF.Parent = btn
+	local sC = Instance.new("UICorner")
+	sC.CornerRadius = UDim.new(0, 10)
+	sC.Parent = sF
+	local sS = Instance.new("UIStroke")
+	sS.Thickness = 1.5
+	sS.Color = initial and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 130, 150)
+	sS.Transparency = 0.4
+	sS.Parent = sF
+	local sL = Instance.new("TextLabel")
+	sL.Size = UDim2.new(1, 0, 1, 0)
+	sL.BackgroundTransparency = 1
+	sL.Text = initial and "ON" or "OFF"
+	sL.TextColor3 = Color3.fromRGB(255, 255, 255)
+	sL.TextSize = 14
+	sL.Font = Enum.Font.GothamBold
+	sL.Parent = sF
+	local state = initial
+	local function setState(newState)
+		state = newState
+		settings[key] = state
+		local info = TweenInfo.new(0.25)
+		TweenService:Create(sF, info, {BackgroundColor3 = state and Color3.fromRGB(60, 180, 100) or Color3.fromRGB(180, 60, 80)}):Play()
+		TweenService:Create(sS, info, {Color = state and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 130, 150)}):Play()
+		sL.Text = state and "ON" or "OFF"
+		if callback then callback(state) end
+	end
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
+		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.1, BackgroundColor3 = Color3.fromRGB(22, 22, 32)}):Play()
+		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.6}):Play()
+	end)
+	btn.MouseButton1Click:Connect(function() setState(not state) end)
+	return setState
+end
+
 makeToggle("Дождь + Звук", "🌧", "Rain", true)
 makeModeToggle("Система", "💻")
 makeToggle("Аура", "✨", "Aura", true)
@@ -2104,6 +2233,101 @@ makeToggle("Усиление", "⚡", "Buff", false, function(state)
 	buffEnabled = state
 	if buffBtn then
 		buffBtn.Visible = state
+	end
+end)
+
+local eventsEnabled = false
+local eventTimer = 0
+local eventRunning = false
+local currentEventName = nil
+local currentEventEndTime = 0
+local EVENT_INTERVAL = 300
+local EVENTS_LIST = { "Торнадо", "Цунами", "Туман" }
+
+local function setEventBadge(text, visible)
+	eventBadge.Text = text
+	eventBadge.Visible = visible
+end
+
+local function pickRandomEvent()
+	local pick = EVENTS_LIST[math.random(1, #EVENTS_LIST)]
+	return pick
+end
+
+local function runEventByName(name)
+	if name == "Торнадо" then
+		print("Ивент запущен: Торнадо")
+		task.wait(65)
+	elseif name == "Цунами" then
+		print("Ивент запущен: Цунами")
+		task.wait(25)
+	elseif name == "Туман" then
+		print("Ивент запущен: Туман + NPC")
+		task.wait(120)
+	end
+end
+
+local function startEventLoop()
+	task.spawn(function()
+		while eventsEnabled do
+			eventRunning = false
+			local waitStart = tick()
+			while eventsEnabled and tick() - waitStart < EVENT_INTERVAL do
+				local remaining = EVENT_INTERVAL - (tick() - waitStart)
+				local mins = math.floor(remaining / 60)
+				local secs = math.floor(remaining % 60)
+				setEventBadge(string.format("⏱ Ивент через %d:%02d", mins, secs), true)
+				task.wait(0.25)
+			end
+			if not eventsEnabled then break end
+
+			eventRunning = true
+			local chosen = pickRandomEvent()
+			currentEventName = chosen
+
+			if chosen == "Цунами" then
+				setEventBadge("⚠ ЦУНАМИ", true)
+			elseif chosen == "Торнадо" then
+				setEventBadge("⚠ ТОРНАДО 65", true)
+			elseif chosen == "Туман" then
+				setEventBadge("⚠ ТУМАН 120", true)
+			end
+
+			local duration = 0
+			if chosen == "Торнадо" then duration = 65
+			elseif chosen == "Цунами" then duration = 25
+			elseif chosen == "Туман" then duration = 120 end
+
+			local eventStart = tick()
+			if chosen ~= "Цунами" then
+				task.spawn(function()
+					while eventsEnabled and eventRunning do
+						local rem = duration - (tick() - eventStart)
+						if rem <= 0 then break end
+						local mins = math.floor(rem / 60)
+						local secs = math.floor(rem % 60)
+						setEventBadge(string.format("⚠ %s %d:%02d", string.upper(chosen), mins, secs), true)
+						task.wait(0.25)
+					end
+				end)
+			end
+
+			runEventByName(chosen)
+
+			eventRunning = false
+			setEventBadge("", false)
+		end
+		setEventBadge("", false)
+	end)
+end
+
+makeEventToggle("Ивенты", "🎲", "Events", false, "раз в 5 минут", function(state)
+	eventsEnabled = state
+	if state then
+		startEventLoop()
+	else
+		eventRunning = false
+		setEventBadge("", false)
 	end
 end)
 
@@ -2225,4 +2449,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff loaded")
+print("Rain Visual + Meteor + Buff + Events loaded")
