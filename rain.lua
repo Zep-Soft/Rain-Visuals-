@@ -51,7 +51,6 @@ local function createLayer(count, size, speed, spread, height, useLight)
         p.Color = Color3.fromHSV(math.random(), 1, 1)
         p.Transparency = 0.2
         p.Parent = rainFolder
-
         if useLight then
             local light = Instance.new("PointLight")
             light.Color = p.Color
@@ -59,7 +58,6 @@ local function createLayer(count, size, speed, spread, height, useLight)
             light.Brightness = 1.5
             light.Parent = p
         end
-
         table.insert(layer, {
             part = p,
             hue = math.random(),
@@ -139,7 +137,6 @@ local function spawnSkyDigit()
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
     local p = Instance.new("Part")
     p.Size = Vector3.new(0.1, 0.1, 0.1)
     p.Anchored = true
@@ -150,20 +147,16 @@ local function spawnSkyDigit()
     p.Transparency = 1
     p.Material = Enum.Material.SmoothPlastic
     p.Parent = skyFolder
-
     local angle = math.random() * math.pi * 2
     local distance = 15 + math.random() * 35
     local height = 15 + math.random() * 25
-
     local pos = hrp.Position + Vector3.new(math.cos(angle) * distance, height, math.sin(angle) * distance)
     p.CFrame = CFrame.new(pos)
-
     local sg = Instance.new("BillboardGui")
     sg.Size = UDim2.new(0, 60, 0, 60)
     sg.AlwaysOnTop = false
     sg.Adornee = p
     sg.Parent = p
-
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
@@ -174,9 +167,7 @@ local function spawnSkyDigit()
     label.TextStrokeTransparency = 0.3
     label.TextStrokeColor3 = Color3.fromRGB(0, 50, 0)
     label.Parent = sg
-
     table.insert(skyDigits, {part = p, gui = sg, label = label})
-
     task.delay(0.2, function()
         if p and p.Parent then
             p:Destroy()
@@ -252,19 +243,15 @@ for i = 1, auraCount do
     p.Color = Color3.fromHSV(i / auraCount, 1, 1)
     p.Transparency = 0.1
     p.Parent = auraFolder
-
     local light = Instance.new("PointLight")
     light.Color = p.Color
     light.Range = 4
     light.Brightness = 2
     light.Parent = p
-
     local trail = makeTrail(p, auraSize)
-
     local startTilt = math.random(-90, 90)
     local startHeight = (math.random() - 0.5) * 0.6
     local startSpeed = math.random(10, 50) / 10
-
     table.insert(auraParts, {
         part = p, light = light, trail = trail, hue = i / auraCount,
         angle = (i / auraCount) * math.pi * 2, radius = auraRadius,
@@ -306,16 +293,84 @@ end)
 local auraT = 0
 local hackerT = 0
 
+local pulseState = nil
+
+local function triggerAuraPulse()
+    pulseState = {
+        phase = "inhale",
+        phaseTime = 0,
+        startRadius = auraRadius,
+        jitterTimer = 0,
+    }
+    for _, a in ipairs(auraParts) do
+        a.baseRadius = a.radius
+    end
+end
+
+local function updateAuraPulse(dt)
+    if not pulseState then return end
+    pulseState.phaseTime = pulseState.phaseTime + dt
+
+    if pulseState.phase == "inhale" then
+        local t = math.min(1, pulseState.phaseTime / 0.05)
+        for _, a in ipairs(auraParts) do
+            a.radius = pulseState.startRadius + (2.8 - pulseState.startRadius) * t
+        end
+        if pulseState.phaseTime >= 0.05 then
+            pulseState.phase = "exhale"
+            pulseState.phaseTime = 0
+        end
+
+    elseif pulseState.phase == "exhale" then
+        local t = math.min(1, pulseState.phaseTime / 0.3)
+        local e = 1 - (1 - t) * (1 - t)
+        for _, a in ipairs(auraParts) do
+            a.radius = 2.8 + (9 - 2.8) * e
+        end
+        if pulseState.phaseTime >= 0.3 then
+            pulseState.phase = "jitter"
+            pulseState.phaseTime = 0
+            pulseState.jitterTimer = 0
+        end
+
+    elseif pulseState.phase == "jitter" then
+        pulseState.jitterTimer = (pulseState.jitterTimer or 0) + dt
+        if pulseState.jitterTimer >= 0.1 then
+            pulseState.jitterTimer = 0
+            for _, a in ipairs(auraParts) do
+                a.radius = 2.5 + math.random() * 8
+            end
+        end
+        if pulseState.phaseTime >= 0.7 then
+            pulseState.phase = "return"
+            pulseState.phaseTime = 0
+        end
+
+    elseif pulseState.phase == "return" then
+        local t = math.min(1, pulseState.phaseTime / 0.3)
+        local e = t * t
+        for _, a in ipairs(auraParts) do
+            local targetR = a.baseRadius or auraRadius
+            a.radius = a.radius + (targetR - a.radius) * e
+        end
+        if pulseState.phaseTime >= 0.3 then
+            for _, a in ipairs(auraParts) do
+                a.radius = a.baseRadius or auraRadius
+            end
+            pulseState = nil
+        end
+    end
+end
+
 RunService.RenderStepped:Connect(function(dt)
     auraT = auraT + dt
     hackerT = hackerT + dt
-
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     local center = hrp.Position
-
+    updateAuraPulse(dt)
     if currentMode == "Rainbow" then
         for _, a in ipairs(auraParts) do
             if a.progress < 1 then
@@ -323,18 +378,18 @@ RunService.RenderStepped:Connect(function(dt)
             end
             local e = 0.5 - 0.5 * math.cos(a.progress * math.pi)
             a.angle = a.startAngle + (a.targetAngle - a.startAngle) * e
-            a.radius = a.startRadius + (a.targetRadius - a.startRadius) * e
+            if not pulseState then
+                a.radius = a.startRadius + (a.targetRadius - a.startRadius) * e
+            end
             a.tilt = a.startTilt + (a.targetTilt - a.startTilt) * e
             a.height = a.startHeight + (a.targetHeight - a.startHeight) * e
             a.speed = a.startSpeed + (a.targetSpeed - a.startSpeed) * e
-
             local angle = a.angle + auraT * a.speed
             local tR = math.rad(a.tilt)
             local lX = math.cos(angle) * a.radius
             local lZ = math.sin(angle) * a.radius
             local tY = lZ * math.sin(tR)
             local tZ = lZ * math.cos(tR)
-
             a.part.CFrame = CFrame.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
             a.part.Transparency = 0.1
             a.part.Size = Vector3.new(auraSize, auraSize, auraSize)
@@ -358,26 +413,21 @@ RunService.RenderStepped:Connect(function(dt)
                 a.angle = math.random() * math.pi * 2
                 a.height = (math.random() - 0.5) * 1.5
             end
-
             if a.hackerState == "visible" then
                 a.hackerAlpha = math.min(1, a.hackerAlpha + dt * 6)
             else
                 a.hackerAlpha = math.max(0, a.hackerAlpha - dt * 8)
             end
-
             local jitter = math.sin(hackerT * 15 + a.hackerPhase) * a.hackerJitter
             local glitch = math.sin(hackerT * 30 + a.hackerPhase * 2)
-
             local moveAngle = a.angle + hackerT * a.hackerSpeed
             local tR = math.rad(a.tilt)
             local lX = math.cos(moveAngle) * (a.hackerRadius + jitter)
             local lZ = math.sin(moveAngle) * (a.hackerRadius + jitter)
             local tY = lZ * math.sin(tR)
             local tZ = lZ * math.cos(tR)
-
             local flash = 0.5 + 0.5 * math.sin(hackerT * 12 + a.hackerPhase)
             local flicker = math.random() > 0.85 and 0.2 or 1
-
             a.part.CFrame = CFrame.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
             a.part.Transparency = 1 - a.hackerAlpha * 0.95 * flicker
             a.part.Size = Vector3.new(
@@ -385,7 +435,6 @@ RunService.RenderStepped:Connect(function(dt)
                 auraSize * (0.7 + flash * 0.6),
                 auraSize * (0.7 + flash * 0.6 + glitch * 0.2)
             )
-
             local greenVal = 0.3 + flash * 0.7
             local color = Color3.fromRGB(
                 math.floor(20 * flash),
@@ -431,15 +480,12 @@ for i = 1, haloCount do
     p.Color = Color3.fromHSV(i / haloCount, 1, 1)
     p.Transparency = 0.1
     p.Parent = haloFolder
-
     local light = Instance.new("PointLight")
     light.Color = p.Color
     light.Range = 3
     light.Brightness = 2
     light.Parent = p
-
     local trail = makeTrail(p, haloSize)
-
     table.insert(haloParts, {
         part = p, light = light, trail = trail, hue = i / haloCount,
         baseAngle = (i / haloCount) * math.pi * 2,
@@ -458,15 +504,12 @@ RunService.RenderStepped:Connect(function(dt)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     local center = hrp.Position
-
     for _, h in ipairs(haloParts) do
         local angle = h.baseAngle + haloT * 1.5
         local yBob = math.sin(haloT * 2 + h.bobPhase) * 0.15
         local lX = math.cos(angle) * haloRadius
         local lZ = math.sin(angle) * haloRadius
-
         h.part.CFrame = CFrame.new(center.X + lX, center.Y + haloHeight + yBob, center.Z + lZ) * CFrame.Angles(haloT * h.spinSpeed, haloT * h.spinSpeed, 0)
-
         local color
         if currentMode == "Rainbow" then
             h.hue = (h.hue + dt * 0.3) % 1
@@ -481,7 +524,6 @@ RunService.RenderStepped:Connect(function(dt)
             local s = haloSize * (0.8 + flash * 0.5)
             h.part.Size = Vector3.new(s, s, s)
         end
-
         h.part.Color = color
         h.light.Color = color
         if h.trail then h.trail.Color = ColorSequence.new(color) end
@@ -510,7 +552,6 @@ local function createPortal(position)
         openProgress = 0,
         spawnTime = tick(),
     }
-
     local group = Instance.new("Folder")
     group.Name = "Portal"
     group.Parent = portalFolder
@@ -649,13 +690,11 @@ local function createPortal(position)
         spark.Color = Color3.fromHSV(math.random() * 0.15 + 0.75, 1, 1)
         spark.Transparency = 0.1
         spark.Parent = sparkFolder
-
         local sparkLight = Instance.new("PointLight")
         sparkLight.Color = spark.Color
         sparkLight.Range = 5
         sparkLight.Brightness = 2
         sparkLight.Parent = spark
-
         table.insert(portal.particles, {
             part = spark,
             angle = math.random() * math.pi * 2,
@@ -670,7 +709,6 @@ local function createPortal(position)
     local beamAttachment0 = Instance.new("Attachment")
     beamAttachment0.Position = Vector3.new(0, PORTAL_RADIUS * 0.9, 0)
     beamAttachment0.Parent = outerRing
-
     local beamAttachment1 = Instance.new("Attachment")
     beamAttachment1.Position = Vector3.new(0, -PORTAL_RADIUS * 0.9, 0)
     beamAttachment1.Parent = outerRing
@@ -757,9 +795,7 @@ local function tryPlacePortal(input)
 
     local inset = GuiService:GetGuiInset()
     local screenPos = Vector2.new(inputPos.X, inputPos.Y - inset.Y)
-
     local unitRay = camera:ViewportPointToRay(screenPos.X, screenPos.Y)
-
     local char = player.Character
 
     local filterList = {portalFolder, camera}
@@ -775,44 +811,8 @@ local function tryPlacePortal(input)
     rayParams.FilterDescendantsInstances = filterList
 
     local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 2000, rayParams)
-
     if not result or not result.Instance or not result.Instance:IsA("BasePart") then return end
-
     local pos = result.Position + result.Normal * 0.5
-
-    local checkFilter = {portalFolder, camera}
-    if char then
-        table.insert(checkFilter, char)
-        for _, child in ipairs(char:GetChildren()) do
-            table.insert(checkFilter, child)
-        end
-    end
-
-    local checkParams = RaycastParams.new()
-    checkParams.FilterType = Enum.RaycastFilterType.Exclude
-    checkParams.FilterDescendantsInstances = checkFilter
-
-    local clearance = PORTAL_RADIUS * 0.6
-
-    local directions = {
-        Vector3.new(1, 0, 0),
-        Vector3.new(-1, 0, 0),
-        Vector3.new(0, 1, 0),
-        Vector3.new(0, 0, 1),
-        Vector3.new(0, 0, -1),
-    }
-
-    local blocked = false
-
-    for _, dir in ipairs(directions) do
-        local hit = workspace:Raycast(pos, dir * clearance, checkParams)
-        if hit and hit.Instance then
-            blocked = true
-            break
-        end
-    end
-
-    if blocked then return end
 
     if #portals >= 2 then
         destroyPortal(portals[1])
@@ -829,7 +829,6 @@ local function createTeleportEffect(position)
     local effectFolder = Instance.new("Folder")
     effectFolder.Parent = workspace
     effectFolder.Name = "TeleportEffect"
-
     for i = 1, 20 do
         local p = Instance.new("Part")
         p.Shape = Enum.PartType.Ball
@@ -844,34 +843,28 @@ local function createTeleportEffect(position)
         p.Transparency = 0.2
         p.Position = position
         p.Parent = effectFolder
-
         local light = Instance.new("PointLight")
         light.Color = p.Color
         light.Range = 6
         light.Brightness = 3
         light.Parent = p
-
         local dir = Vector3.new(
             (math.random() - 0.5) * 2,
             math.random() * 1.5,
             (math.random() - 0.5) * 2
         ).Unit
-
         local targetPos = position + dir * (5 + math.random() * 5)
-
         TweenService:Create(p, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = targetPos,
             Transparency = 1,
             Size = Vector3.new(0.05, 0.05, 0.05),
         }):Play()
-
         task.delay(0.9, function()
             if p and p.Parent then
                 p:Destroy()
             end
         end)
     end
-
     task.delay(1.2, function()
         if effectFolder and effectFolder.Parent then
             effectFolder:Destroy()
@@ -883,97 +876,75 @@ local lastTeleport = 0
 
 RunService.RenderStepped:Connect(function(dt)
     if #portals == 0 then return end
-
     for _, portal in pairs(portals) do
         portal.t = portal.t + dt
         portal.openProgress = math.min(1, (tick() - portal.spawnTime) / 1.2)
-
         local openScale = portal.openProgress
         local pulse = 0.5 + 0.5 * math.sin(portal.t * 3)
         local rot = portal.t * 2
         local fastRot = portal.t * 4
         local slowRot = -portal.t * 1.3
-
         local pulseScale = 1 + pulse * 0.12
         local finalScale = openScale * pulseScale
-
         portal.outerRing.CFrame = CFrame.new(portal.position) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(slowRot, 0, 0)
         portal.outerRing.Size = Vector3.new(0.4, PORTAL_RADIUS * 2.2 * finalScale, PORTAL_RADIUS * 2.2 * finalScale)
-
         portal.ring1.CFrame = CFrame.new(portal.position) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(rot, 0, 0)
         portal.ring1.Size = Vector3.new(0.35, PORTAL_RADIUS * 2 * finalScale, PORTAL_RADIUS * 2 * finalScale)
-
         portal.ring2.CFrame = CFrame.new(portal.position) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(-fastRot, 0, 0)
         portal.ring2.Size = Vector3.new(0.25, PORTAL_RADIUS * 1.75 * finalScale, PORTAL_RADIUS * 1.75 * finalScale)
-
         portal.ring3.CFrame = CFrame.new(portal.position) * CFrame.Angles(0, 0, math.rad(90)) * CFrame.Angles(fastRot * 1.8, 0, 0)
         portal.ring3.Size = Vector3.new(0.18, PORTAL_RADIUS * 1.4 * finalScale, PORTAL_RADIUS * 1.4 * finalScale)
-
         local spherePulse = 1 + math.sin(portal.t * 5) * 0.08
         portal.coreSphere.Size = Vector3.new(
             PORTAL_RADIUS * 1.9 * finalScale * spherePulse,
             PORTAL_RADIUS * 1.9 * finalScale * spherePulse,
             PORTAL_RADIUS * 1.9 * finalScale * spherePulse
         )
-
         portal.darkCore.Size = Vector3.new(
             PORTAL_RADIUS * 1.3 * finalScale,
             PORTAL_RADIUS * 1.3 * finalScale,
             PORTAL_RADIUS * 1.3 * finalScale
         )
-
         portal.innerCore.Size = Vector3.new(
             PORTAL_RADIUS * 0.7 * finalScale * (1 + math.sin(portal.t * 8) * 0.15),
             PORTAL_RADIUS * 0.7 * finalScale * (1 + math.sin(portal.t * 8) * 0.15),
             PORTAL_RADIUS * 0.7 * finalScale * (1 + math.sin(portal.t * 8) * 0.15)
         )
-
         local hueShift = (portal.t * 0.15) % 1
         local colorMain = Color3.fromHSV(0.75 + hueShift * 0.1, 1, 1)
         local colorSecondary = Color3.fromHSV(0.72 + hueShift * 0.1, 0.9, 0.7)
-
         portal.outerRing.Color = colorMain
         portal.outerLight.Color = colorMain
         portal.outerLight.Brightness = (4 + pulse * 4) * openScale
-
         portal.ring1.Color = colorMain
         portal.ring2.Color = colorSecondary
         portal.ring3.Color = Color3.fromRGB(200, 130, 255)
-
         portal.coreLight.Color = colorMain
         portal.coreLight.Brightness = (5 + pulse * 5) * openScale
-
         portal.beam.Color = ColorSequence.new(colorMain)
         portal.beam.Width0 = 0.3 * openScale
         portal.beam.Width1 = 0.3 * openScale
         portal.beam.Transparency = NumberSequence.new(0.3 + (1 - openScale) * 0.7)
-
         for _, spark in ipairs(portal.particles) do
             local pullPhase = (portal.t * spark.speed + spark.pullPhase) % 1
             local pullRadius = spark.radius * (1 - pullPhase * 0.9)
             local sparkAngle = spark.angle + portal.t * 2
-
             local x = math.cos(sparkAngle) * pullRadius * openScale
             local z = math.sin(sparkAngle) * pullRadius * openScale
             local y = spark.height + math.sin(portal.t * 3 + spark.basePhase) * 0.5
-
             spark.part.CFrame = CFrame.new(portal.position + Vector3.new(x, y, z))
             spark.part.Transparency = 0.1 + pullPhase * 0.7
             local sparkScale = (1 - pullPhase * 0.7) * openScale
             spark.part.Size = Vector3.new(0.25 * sparkScale, 0.25 * sparkScale, 0.25 * sparkScale)
         end
     end
-
     if #portals < 2 then return end
-
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
     local now = tick()
     if now - lastTeleport < 0.8 then return end
-
     for i, portal in pairs(portals) do
         if portal.openProgress < 0.6 then continue end
         local dist = (hrp.Position - portal.position).Magnitude
@@ -1002,11 +973,24 @@ local meteorRunning = false
 local METEOR_COOLDOWN = 25
 local lastMeteorUse = -999
 
+local buffEnabled = false
+local buffBtn = nil
+local buffRunning = false
+local buffActive = false
+local buffLockedUntil = 0
+
+local BUFF_COOLDOWN = 35
+local BUFF_DURATION = 15
+local BUFF_SPEED = 25
+local BUFF_DEFAULT_SPEED = 16
+local BUFF_HEALTH_COST = 30
+local BUFF_LOCK_AFTER = 3
+local meteorLockedUntil = 0
+
 local function createCrater(pos)
     local craterFolder = Instance.new("Folder")
     craterFolder.Name = "MeteorCrater"
     craterFolder.Parent = workspace
-
     for i = 1, 16 do
         local angle = (i / 16) * math.pi * 2
         local length = 3 + math.random() * 6
@@ -1023,7 +1007,6 @@ local function createCrater(pos)
         crack.Parent = craterFolder
         crack.CFrame = CFrame.new(pos + Vector3.new(math.cos(angle) * length / 2, 0.1, math.sin(angle) * length / 2)) * CFrame.Angles(0, -angle, 0)
     end
-
     for i = 1, 30 do
         local angle = math.random() * math.pi * 2
         local distance = 2 + math.random() * 12
@@ -1046,7 +1029,6 @@ local function createCrater(pos)
         light.Brightness = 2
         light.Parent = shard
     end
-
     local lightPart = Instance.new("Part")
     lightPart.Size = Vector3.new(0.1, 0.1, 0.1)
     lightPart.Anchored = true
@@ -1056,13 +1038,11 @@ local function createCrater(pos)
     lightPart.Transparency = 1
     lightPart.Parent = craterFolder
     lightPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-
     local craterLight = Instance.new("PointLight")
     craterLight.Color = Color3.fromRGB(255, 100, 30)
     craterLight.Range = 30
     craterLight.Brightness = 5
     craterLight.Parent = lightPart
-
     return craterFolder
 end
 
@@ -1071,26 +1051,21 @@ local function runMeteor()
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
     local lockedPos = hrp.Position
-
     local randomAngle = math.random() * math.pi * 2
     local targetPos = lockedPos + Vector3.new(
         math.cos(randomAngle) * 25,
         0,
         math.sin(randomAngle) * 25
     )
-
     local startPos = targetPos + Vector3.new(
         (math.random() - 0.5) * 300,
         300,
         (math.random() - 0.5) * 300
     )
-
     local meteorFolder = Instance.new("Folder")
     meteorFolder.Name = "Meteor"
     meteorFolder.Parent = workspace
-
     local meteorCenter = Instance.new("Part")
     meteorCenter.Size = Vector3.new(1, 1, 1)
     meteorCenter.Anchored = true
@@ -1101,52 +1076,81 @@ local function runMeteor()
     meteorCenter.Transparency = 1
     meteorCenter.Parent = meteorFolder
     meteorCenter.CFrame = CFrame.new(startPos)
-
-    local cubeCount = 250
+    local cubeCount = 600
     local cubes = {}
-
     for i = 1, cubeCount do
+        local isMagma = i > cubeCount * 0.65
         local cube = Instance.new("Part")
         cube.Shape = Enum.PartType.Block
-        cube.Size = Vector3.new(
-            math.random() * 4 + 2,
-            math.random() * 4 + 2,
-            math.random() * 4 + 2
-        )
         cube.Anchored = true
         cube.CanCollide = false
         cube.CanTouch = false
         cube.CanQuery = false
         cube.Massless = true
-        cube.Material = Enum.Material.Neon
-        local heat = math.random()
-        cube.Color = Color3.fromRGB(
-            math.floor(60 + heat * 195),
-            math.floor(20 + heat * 80),
-            math.floor(5 + heat * 20)
-        )
-        cube.Transparency = 0.05 + math.random() * 0.15
-        cube.Parent = meteorFolder
-
-        local light = nil
-        if math.random() > 0.7 then
-            light = Instance.new("PointLight")
-            light.Color = Color3.fromRGB(255, 100, 30)
-            light.Range = 8
-            light.Brightness = 2
-            light.Parent = cube
+        local size
+        local offset
+        local distFromCenter
+        if isMagma then
+            size = math.random() * 1.8 + 0.6
+            local angle = math.random() * math.pi * 2
+            local phi = math.random() * math.pi
+            distFromCenter = 9 + math.random() * 4
+            offset = Vector3.new(
+                math.sin(phi) * math.cos(angle) * distFromCenter,
+                math.sin(phi) * math.sin(angle) * distFromCenter,
+                math.cos(phi) * distFromCenter
+            )
+        else
+            size = math.random() * 5 + 1.5
+            local angle = math.random() * math.pi * 2
+            local phi = math.random() * math.pi
+            distFromCenter = math.random() * 8
+            offset = Vector3.new(
+                math.sin(phi) * math.cos(angle) * distFromCenter,
+                math.sin(phi) * math.sin(angle) * distFromCenter,
+                math.cos(phi) * distFromCenter
+            )
         end
-
-        local offset = Vector3.new(
-            (math.random() - 0.5) * 16,
-            (math.random() - 0.5) * 16,
-            (math.random() - 0.5) * 16
-        )
-
+        cube.Size = Vector3.new(size, size, size)
+        if isMagma then
+            cube.Material = Enum.Material.Neon
+            local heat = math.random()
+            cube.Color = Color3.fromRGB(
+                255,
+                math.floor(70 + heat * 130),
+                math.floor(5 + heat * 50)
+            )
+            cube.Transparency = 0.02 + math.random() * 0.08
+            local magmaLight = Instance.new("PointLight")
+            magmaLight.Color = Color3.fromRGB(255, 120, 30)
+            magmaLight.Range = 8
+            magmaLight.Brightness = 2.5
+            magmaLight.Parent = cube
+        else
+            cube.Material = Enum.Material.Slate
+            local rock = math.random()
+            if rock > 0.66 then
+                cube.Color = Color3.fromRGB(35, 25, 20)
+            elseif rock > 0.33 then
+                cube.Color = Color3.fromRGB(55, 40, 30)
+            else
+                cube.Color = Color3.fromRGB(75, 55, 40)
+            end
+            cube.Transparency = 0.05 + math.random() * 0.15
+            if math.random() > 0.8 then
+                local emberLight = Instance.new("PointLight")
+                emberLight.Color = Color3.fromRGB(255, 70, 15)
+                emberLight.Range = 5
+                emberLight.Brightness = 1.5
+                emberLight.Parent = cube
+            end
+        end
+        cube.Parent = meteorFolder
         table.insert(cubes, {
             part = cube,
             offset = offset,
-            light = light,
+            isMagma = isMagma,
+            baseSize = size,
             spin = Vector3.new(
                 math.random() * 2 - 1,
                 math.random() * 2 - 1,
@@ -1154,79 +1158,140 @@ local function runMeteor()
             ) * 2,
         })
     end
-
+    local corePart = Instance.new("Part")
+    corePart.Shape = Enum.PartType.Ball
+    corePart.Size = Vector3.new(12, 12, 12)
+    corePart.Anchored = true
+    corePart.CanCollide = false
+    corePart.CanTouch = false
+    corePart.CanQuery = false
+    corePart.Massless = true
+    corePart.Material = Enum.Material.Neon
+    corePart.Color = Color3.fromRGB(255, 140, 40)
+    corePart.Transparency = 0.25
+    corePart.Parent = meteorFolder
+    local coreLight = Instance.new("PointLight")
+    coreLight.Color = Color3.fromRGB(255, 100, 30)
+    coreLight.Range = 40
+    coreLight.Brightness = 8
+    coreLight.Parent = corePart
+    local smokeParticles = {}
+    for i = 1, 50 do
+        local smoke = Instance.new("Part")
+        smoke.Shape = Enum.PartType.Ball
+        smoke.Size = Vector3.new(math.random() * 3 + 1, math.random() * 3 + 1, math.random() * 3 + 1)
+        smoke.Anchored = true
+        smoke.CanCollide = false
+        smoke.CanTouch = false
+        smoke.CanQuery = false
+        smoke.Massless = true
+        smoke.Material = Enum.Material.SmoothPlastic
+        smoke.Color = Color3.fromRGB(math.random(30, 60), math.random(25, 50), math.random(20, 45))
+        smoke.Transparency = 0.5
+        smoke.Parent = meteorFolder
+        table.insert(smokeParticles, {
+            part = smoke,
+            offset = Vector3.new(
+                (math.random() - 0.5) * 35,
+                (math.random() - 0.5) * 35,
+                (math.random() - 0.5) * 35
+            ),
+            drift = Vector3.new(
+                (math.random() - 0.5) * 6,
+                math.random() * 4 + 2,
+                (math.random() - 0.5) * 6
+            ),
+            life = 0,
+            maxLife = 1 + math.random(),
+        })
+    end
     local trailAttach0 = Instance.new("Attachment")
-    trailAttach0.Position = Vector3.new(0, 8, 0)
+    trailAttach0.Position = Vector3.new(0, 10, 0)
     trailAttach0.Parent = meteorCenter
-
     local trailAttach1 = Instance.new("Attachment")
-    trailAttach1.Position = Vector3.new(0, -8, 0)
+    trailAttach1.Position = Vector3.new(0, -10, 0)
     trailAttach1.Parent = meteorCenter
-
     local meteorTrail = Instance.new("Trail")
     meteorTrail.Attachment0 = trailAttach0
     meteorTrail.Attachment1 = trailAttach1
-    meteorTrail.Lifetime = 1.5
+    meteorTrail.Lifetime = 1.8
     meteorTrail.MinLength = 0
     meteorTrail.WidthScale = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 2),
-        NumberSequenceKeypoint.new(0.5, 1),
+        NumberSequenceKeypoint.new(0, 2.5),
+        NumberSequenceKeypoint.new(0.4, 1.5),
         NumberSequenceKeypoint.new(1, 0),
     })
     meteorTrail.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 150)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 120, 30)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 30, 10)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 250, 180)),
+        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 150, 40)),
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(220, 60, 20)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 10, 5)),
     })
     meteorTrail.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.2),
+        NumberSequenceKeypoint.new(0, 0.1),
         NumberSequenceKeypoint.new(1, 1),
     })
     meteorTrail.LightEmission = 1
     meteorTrail.LightInfluence = 0
     meteorTrail.FaceCamera = true
     meteorTrail.Parent = meteorCenter
-
     local oldCameraType = camera.CameraType
     local oldCameraSubject = camera.CameraSubject
-
     camera.CameraType = Enum.CameraType.Scriptable
-
     local flightTime = 2.5
     local elapsed = 0
     local shakeTime = 0
-
     while elapsed < flightTime do
         local dt = RunService.RenderStepped:Wait()
         elapsed = elapsed + dt
-
         local t = elapsed / flightTime
         local easeT = t * t
-
         local currentPos = startPos:Lerp(targetPos, easeT)
-
         local dir = (targetPos - currentPos)
         if dir.Magnitude > 0.1 then
             meteorCenter.CFrame = CFrame.lookAt(currentPos, currentPos + dir.Unit)
         else
             meteorCenter.CFrame = CFrame.new(currentPos)
         end
-
+        corePart.CFrame = CFrame.new(currentPos)
+        local corePulse = 12 + math.sin(elapsed * 10) * 1.5
+        corePart.Size = Vector3.new(corePulse, corePulse, corePulse)
         for _, c in ipairs(cubes) do
             local rotatedOffset = meteorCenter.CFrame:VectorToWorldSpace(c.offset)
+            if c.isMagma then
+                local wobble = 1 + math.sin(elapsed * 8 + c.offset.X) * 0.2
+                local s = c.baseSize * wobble
+                c.part.Size = Vector3.new(s, s, s)
+            end
             c.part.CFrame = CFrame.new(currentPos + rotatedOffset) * CFrame.Angles(
                 elapsed * c.spin.X,
                 elapsed * c.spin.Y,
                 elapsed * c.spin.Z
             )
         end
-
-        local camPos = currentPos + Vector3.new(30, 20, 30)
+        for _, s in ipairs(smokeParticles) do
+            s.life = s.life + dt
+            if s.life >= s.maxLife then
+                s.life = 0
+                s.maxLife = 0.5 + math.random()
+                s.offset = Vector3.new(
+                    (math.random() - 0.5) * 35,
+                    (math.random() - 0.5) * 35,
+                    (math.random() - 0.5) * 35
+                )
+            end
+            local progress = s.life / s.maxLife
+            local smokePos = currentPos + s.offset + s.drift * s.life
+            local scaledSize = 4 - progress * 3
+            s.part.Size = Vector3.new(scaledSize, scaledSize, scaledSize)
+            s.part.Transparency = 0.4 + progress * 0.6
+            s.part.CFrame = CFrame.new(smokePos)
+        end
+        local camPos = currentPos + Vector3.new(40, 25, 40)
         camera.CFrame = CFrame.lookAt(camPos, currentPos)
-
         if elapsed > flightTime - 1 then
             shakeTime = shakeTime + dt
-            local shakeAmount = (shakeTime / 1) * 0.8
+            local shakeAmount = (shakeTime / 1) * 0.9
             camera.CFrame = camera.CFrame * CFrame.Angles(
                 (math.random() - 0.5) * shakeAmount,
                 (math.random() - 0.5) * shakeAmount,
@@ -1234,58 +1299,150 @@ local function runMeteor()
             )
         end
     end
-
     for _, c in ipairs(cubes) do
         if c.part then
-            c.part.CFrame = CFrame.new(targetPos + c.offset * 0.5) * CFrame.Angles(
+            c.part.CFrame = CFrame.new(targetPos + c.offset * 0.7) * CFrame.Angles(
                 math.random() * 6,
                 math.random() * 6,
                 math.random() * 6
             )
         end
     end
-
+    corePart.CFrame = CFrame.new(targetPos + Vector3.new(0, -4, 0))
+    corePart.Size = Vector3.new(10, 10, 10)
     camera.CFrame = camera.CFrame * CFrame.Angles(
-        (math.random() - 0.5) * 1.5,
-        (math.random() - 0.5) * 1.5,
-        (math.random() - 0.5) * 1.5
+        (math.random() - 0.5) * 1.8,
+        (math.random() - 0.5) * 1.8,
+        (math.random() - 0.5) * 1.8
     )
-
     createCrater(targetPos)
-
     local blackGui = Instance.new("ScreenGui")
     blackGui.Name = "MeteorBlack"
     blackGui.ResetOnSpawn = false
     blackGui.IgnoreGuiInset = true
     blackGui.DisplayOrder = 99999
     blackGui.Parent = player:WaitForChild("PlayerGui")
-
     local blackFrame = Instance.new("Frame")
     blackFrame.Size = UDim2.fromScale(1, 1)
     blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     blackFrame.BackgroundTransparency = 0
     blackFrame.BorderSizePixel = 0
     blackFrame.Parent = blackGui
-
     task.wait(2)
-
     TweenService:Create(blackFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 1,
     }):Play()
-
     task.wait(0.9)
-
     blackGui:Destroy()
-
     camera.CameraType = oldCameraType
     camera.CameraSubject = oldCameraSubject
-
     task.wait(0.3)
-
     meteorFolder:Destroy()
 end
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false }
+local function runBuffCamera(duration, onFinish)
+    local char = player.Character
+    if not char then
+        if onFinish then onFinish() end
+        return
+    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        if onFinish then onFinish() end
+        return
+    end
+
+    local oldType = camera.CameraType
+    local oldSubject = camera.CameraSubject
+    local torsoPos = hrp.Position + Vector3.new(0, 1.5, 0)
+
+    camera.CameraType = Enum.CameraType.Scriptable
+
+    task.spawn(function()
+        local elapsed = 0
+        local ok, err = pcall(function()
+            while elapsed < duration do
+                local dt = RunService.RenderStepped:Wait()
+                elapsed = elapsed + dt
+                local t = math.min(1, elapsed / duration)
+
+                local startAngle = math.rad(45)
+                local endAngle = math.rad(-45)
+                local angle = startAngle + (endAngle - startAngle) * t
+                local radius = 5 + t * 5
+
+                local offset = Vector3.new(
+                    math.cos(angle) * radius,
+                    2,
+                    math.sin(angle) * radius
+                )
+                local camPos = torsoPos + offset
+
+                camera.CFrame = CFrame.lookAt(camPos, torsoPos)
+            end
+        end)
+
+        camera.CameraType = oldType
+        camera.CameraSubject = oldSubject
+
+        if not ok then
+            warn("Buff camera error:", err)
+        end
+
+        if onFinish then onFinish() end
+    end)
+end
+
+local function triggerBuff()
+    if buffRunning then return end
+    if not buffEnabled then return end
+    if tick() < buffLockedUntil then return end
+    if tick() < meteorLockedUntil then return end
+    if meteorRunning then return end
+
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    buffRunning = true
+    buffActive = true
+    hum.WalkSpeed = 0
+
+    triggerAuraPulse()
+
+    local totalDuration = 0.05 + 0.3 + 0.7 + 0.3
+
+    runBuffCamera(totalDuration, function()
+        local c = player.Character
+        if c then
+            local h = c:FindFirstChildOfClass("Humanoid")
+            if h then
+                h.Health = h.Health - BUFF_HEALTH_COST
+                h.WalkSpeed = BUFF_SPEED
+            end
+        end
+
+        buffLockedUntil = tick() + BUFF_COOLDOWN
+        meteorLockedUntil = tick() + BUFF_LOCK_AFTER
+
+        task.delay(BUFF_DURATION, function()
+            local c2 = player.Character
+            if c2 then
+                local h2 = c2:FindFirstChildOfClass("Humanoid")
+                if h2 then
+                    h2.WalkSpeed = BUFF_DEFAULT_SPEED
+                end
+            end
+            buffActive = false
+        end)
+
+        buffRunning = false
+    end)
+end
+
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false }
+
 local pg = player:WaitForChild("PlayerGui")
 
 local screenGui = Instance.new("ScreenGui")
@@ -1298,7 +1455,7 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 7
+local NUM_BUTTONS = 8
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
@@ -1453,6 +1610,72 @@ meteorCooldownStroke.Parent = meteorCooldownLabel
 
 meteorBtn = meteorBtnUi
 
+local buffBtnUi = Instance.new("TextButton")
+buffBtnUi.Name = "BuffBtn"
+buffBtnUi.AnchorPoint = Vector2.new(1, 0.5)
+buffBtnUi.Position = UDim2.new(1, -20, 0.5, -180)
+buffBtnUi.Size = UDim2.new(0, 70, 0, 70)
+buffBtnUi.BackgroundColor3 = Color3.fromRGB(120, 100, 20)
+buffBtnUi.BackgroundTransparency = 0.1
+buffBtnUi.BorderSizePixel = 0
+buffBtnUi.Text = "⚡"
+buffBtnUi.TextColor3 = Color3.fromRGB(255, 255, 255)
+buffBtnUi.TextSize = 34
+buffBtnUi.Font = Enum.Font.GothamBold
+buffBtnUi.AutoButtonColor = false
+buffBtnUi.Visible = false
+buffBtnUi.Parent = screenGui
+
+local buffBtnUiCorner = Instance.new("UICorner")
+buffBtnUiCorner.CornerRadius = UDim.new(0, 20)
+buffBtnUiCorner.Parent = buffBtnUi
+
+local buffBtnUiStroke = Instance.new("UIStroke")
+buffBtnUiStroke.Thickness = 2.5
+buffBtnUiStroke.Color = Color3.fromRGB(255, 230, 80)
+buffBtnUiStroke.Transparency = 0.2
+buffBtnUiStroke.Parent = buffBtnUi
+
+local buffBtnUiGrad = Instance.new("UIGradient")
+buffBtnUiGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 100)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 120, 20)),
+})
+buffBtnUiGrad.Rotation = 45
+buffBtnUiGrad.Parent = buffBtnUiStroke
+
+local buffBtnUiLabel = Instance.new("TextLabel")
+buffBtnUiLabel.AnchorPoint = Vector2.new(0.5, 1)
+buffBtnUiLabel.Position = UDim2.new(0.5, 0, 1, -4)
+buffBtnUiLabel.Size = UDim2.new(1, 0, 0, 14)
+buffBtnUiLabel.BackgroundTransparency = 1
+buffBtnUiLabel.Text = "УСИЛЕНИЕ"
+buffBtnUiLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+buffBtnUiLabel.TextScaled = true
+buffBtnUiLabel.Font = Enum.Font.GothamBold
+buffBtnUiLabel.Parent = buffBtnUi
+
+local buffCooldownLabel = Instance.new("TextLabel")
+buffCooldownLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+buffCooldownLabel.Position = UDim2.fromScale(0.5, 0.45)
+buffCooldownLabel.Size = UDim2.fromScale(0.8, 0.6)
+buffCooldownLabel.BackgroundTransparency = 1
+buffCooldownLabel.Text = ""
+buffCooldownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+buffCooldownLabel.TextScaled = true
+buffCooldownLabel.Font = Enum.Font.GothamBold
+buffCooldownLabel.ZIndex = 10
+buffCooldownLabel.Visible = false
+buffCooldownLabel.Parent = buffBtnUi
+
+local buffCooldownStroke = Instance.new("UIStroke")
+buffCooldownStroke.Thickness = 2
+buffCooldownStroke.Color = Color3.fromRGB(0, 0, 0)
+buffCooldownStroke.Transparency = 0.3
+buffCooldownStroke.Parent = buffCooldownLabel
+
+buffBtn = buffBtnUi
+
 meteorBtnUi.MouseEnter:Connect(function()
     TweenService:Create(meteorBtnUi, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
 end)
@@ -1464,6 +1687,7 @@ end)
 
 meteorBtnUi.MouseButton1Click:Connect(function()
     if not meteorEnabled or meteorRunning then return end
+    if tick() < buffLockedUntil then return end
     local now = tick()
     if now - lastMeteorUse < METEOR_COOLDOWN then return end
     lastMeteorUse = now
@@ -1472,6 +1696,7 @@ meteorBtnUi.MouseButton1Click:Connect(function()
         runMeteor()
     end)
     meteorRunning = false
+    buffLockedUntil = tick() + BUFF_LOCK_AFTER
 end)
 
 task.spawn(function()
@@ -1490,6 +1715,40 @@ task.spawn(function()
                 meteorBtnUi.Text = "🪨"
                 meteorBtnUi.BackgroundColor3 = Color3.fromRGB(90, 30, 10)
                 meteorBtnUi.BackgroundTransparency = 0.1
+            end
+        end
+    end
+end)
+
+buffBtnUi.MouseEnter:Connect(function()
+    TweenService:Create(buffBtnUi, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
+end)
+buffBtnUi.MouseLeave:Connect(function()
+    if not buffCooldownLabel.Visible then
+        TweenService:Create(buffBtnUi, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
+    end
+end)
+
+buffBtnUi.MouseButton1Click:Connect(function()
+    triggerBuff()
+end)
+
+task.spawn(function()
+    while buffBtnUi.Parent do
+        task.wait(0.05)
+        local remaining = buffLockedUntil - tick()
+        if remaining > 0 then
+            buffBtnUi.Text = ""
+            buffCooldownLabel.Visible = true
+            buffCooldownLabel.Text = tostring(math.ceil(remaining))
+            buffBtnUi.BackgroundColor3 = Color3.fromRGB(60, 50, 10)
+            buffBtnUi.BackgroundTransparency = 0.35
+        else
+            if buffCooldownLabel.Visible then
+                buffCooldownLabel.Visible = false
+                buffBtnUi.Text = "⚡"
+                buffBtnUi.BackgroundColor3 = Color3.fromRGB(120, 100, 20)
+                buffBtnUi.BackgroundTransparency = 0.1
             end
         end
     end
@@ -1641,17 +1900,14 @@ local function makeToggle(name, icon, key, initial, callback)
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = listFrame
-
     local bC = Instance.new("UICorner")
     bC.CornerRadius = UDim.new(0, 12)
     bC.Parent = btn
-
     local bS = Instance.new("UIStroke")
     bS.Thickness = 1.5
     bS.Color = Color3.fromRGB(150, 180, 255)
     bS.Transparency = 0.6
     bS.Parent = btn
-
     local iB = Instance.new("Frame")
     iB.AnchorPoint = Vector2.new(0, 0.5)
     iB.Position = UDim2.new(0, 12, 0.5, 0)
@@ -1660,11 +1916,9 @@ local function makeToggle(name, icon, key, initial, callback)
     iB.BackgroundTransparency = 0.2
     iB.BorderSizePixel = 0
     iB.Parent = btn
-
     local iC = Instance.new("UICorner")
     iC.CornerRadius = UDim.new(0, 10)
     iC.Parent = iB
-
     local iL = Instance.new("TextLabel")
     iL.Size = UDim2.new(1, 0, 1, 0)
     iL.BackgroundTransparency = 1
@@ -1672,7 +1926,6 @@ local function makeToggle(name, icon, key, initial, callback)
     iL.TextScaled = true
     iL.Font = Enum.Font.GothamBold
     iL.Parent = iB
-
     local lbl = Instance.new("TextLabel")
     lbl.AnchorPoint = Vector2.new(0, 0.5)
     lbl.Position = UDim2.new(0, 58, 0.5, 0)
@@ -1684,7 +1937,6 @@ local function makeToggle(name, icon, key, initial, callback)
     lbl.TextSize = 15
     lbl.Font = Enum.Font.GothamMedium
     lbl.Parent = btn
-
     local sF = Instance.new("Frame")
     sF.AnchorPoint = Vector2.new(1, 0.5)
     sF.Position = UDim2.new(1, -12, 0.5, 0)
@@ -1692,17 +1944,14 @@ local function makeToggle(name, icon, key, initial, callback)
     sF.BackgroundColor3 = initial and Color3.fromRGB(60, 180, 100) or Color3.fromRGB(180, 60, 80)
     sF.BorderSizePixel = 0
     sF.Parent = btn
-
     local sC = Instance.new("UICorner")
     sC.CornerRadius = UDim.new(0, 10)
     sC.Parent = sF
-
     local sS = Instance.new("UIStroke")
     sS.Thickness = 1.5
     sS.Color = initial and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 130, 150)
     sS.Transparency = 0.4
     sS.Parent = sF
-
     local sL = Instance.new("TextLabel")
     sL.Size = UDim2.new(1, 0, 1, 0)
     sL.BackgroundTransparency = 1
@@ -1711,7 +1960,6 @@ local function makeToggle(name, icon, key, initial, callback)
     sL.TextSize = 14
     sL.Font = Enum.Font.GothamBold
     sL.Parent = sF
-
     local state = initial
     local function setState(newState)
         state = newState
@@ -1722,7 +1970,6 @@ local function makeToggle(name, icon, key, initial, callback)
         sL.Text = state and "ON" or "OFF"
         if callback then callback(state) end
     end
-
     btn.MouseEnter:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
         TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
@@ -1743,17 +1990,14 @@ local function makeModeToggle(name, icon)
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = listFrame
-
     local bC = Instance.new("UICorner")
     bC.CornerRadius = UDim.new(0, 12)
     bC.Parent = btn
-
     local bS = Instance.new("UIStroke")
     bS.Thickness = 1.5
     bS.Color = Color3.fromRGB(100, 200, 255)
     bS.Transparency = 0.5
     bS.Parent = btn
-
     local iB = Instance.new("Frame")
     iB.AnchorPoint = Vector2.new(0, 0.5)
     iB.Position = UDim2.new(0, 12, 0.5, 0)
@@ -1762,11 +2006,9 @@ local function makeModeToggle(name, icon)
     iB.BackgroundTransparency = 0.2
     iB.BorderSizePixel = 0
     iB.Parent = btn
-
     local iC = Instance.new("UICorner")
     iC.CornerRadius = UDim.new(0, 10)
     iC.Parent = iB
-
     local iL = Instance.new("TextLabel")
     iL.Size = UDim2.new(1, 0, 1, 0)
     iL.BackgroundTransparency = 1
@@ -1774,7 +2016,6 @@ local function makeModeToggle(name, icon)
     iL.TextScaled = true
     iL.Font = Enum.Font.GothamBold
     iL.Parent = iB
-
     local lbl = Instance.new("TextLabel")
     lbl.AnchorPoint = Vector2.new(0, 0.5)
     lbl.Position = UDim2.new(0, 58, 0.5, 0)
@@ -1786,7 +2027,6 @@ local function makeModeToggle(name, icon)
     lbl.TextSize = 15
     lbl.Font = Enum.Font.GothamMedium
     lbl.Parent = btn
-
     local sF = Instance.new("Frame")
     sF.AnchorPoint = Vector2.new(1, 0.5)
     sF.Position = UDim2.new(1, -12, 0.5, 0)
@@ -1794,17 +2034,14 @@ local function makeModeToggle(name, icon)
     sF.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
     sF.BorderSizePixel = 0
     sF.Parent = btn
-
     local sC = Instance.new("UICorner")
     sC.CornerRadius = UDim.new(0, 10)
     sC.Parent = sF
-
     local sS = Instance.new("UIStroke")
     sS.Thickness = 1.5
     sS.Color = Color3.fromRGB(180, 230, 255)
     sS.Transparency = 0.4
     sS.Parent = sF
-
     local sL = Instance.new("TextLabel")
     sL.Size = UDim2.new(1, 0, 1, 0)
     sL.BackgroundTransparency = 1
@@ -1813,7 +2050,6 @@ local function makeModeToggle(name, icon)
     sL.TextSize = 13
     sL.Font = Enum.Font.GothamBold
     sL.Parent = sF
-
     btn.MouseEnter:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
         TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
@@ -1822,7 +2058,6 @@ local function makeModeToggle(name, icon)
         TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.1, BackgroundColor3 = Color3.fromRGB(22, 22, 32)}):Play()
         TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.5}):Play()
     end)
-
     btn.MouseButton1Click:Connect(function()
         local newMode = currentMode == "Rainbow" and "Hacker" or "Rainbow"
         currentMode = newMode
@@ -1853,11 +2088,16 @@ makeToggle("Портал", "🌀", "Portal", false, function(state)
         clearPortals()
     end
 end)
-
 makeToggle("Метеорит", "🪨", "Meteor", false, function(state)
     meteorEnabled = state
     if meteorBtn then
         meteorBtn.Visible = state
+    end
+end)
+makeToggle("Усиление", "⚡", "Buff", false, function(state)
+    buffEnabled = state
+    if buffBtn then
+        buffBtn.Visible = state
     end
 end)
 
@@ -1888,7 +2128,6 @@ task.spawn(function()
         rainSound.Playing = settings.Rain
         auraFolder.Parent = settings.Aura and workspace.CurrentCamera or nil
         haloFolder.Parent = settings.Halo and workspace.CurrentCamera or nil
-
         if currentMode == "Hacker" then
             for _, d in ipairs(dropsFar) do
                 local g = math.random(80, 255)
@@ -1908,7 +2147,6 @@ task.spawn(function()
                 d.speed = d.baseSpeed
             end
         end
-
         for _, a in ipairs(auraParts) do
             if a.trail then a.trail.Enabled = settings.Trails and (currentMode == "Rainbow" or a.hackerAlpha > 0.1) end
         end
@@ -1981,4 +2219,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-print("Rain Visual + Meteor loaded")
+print("Rain Visual + Meteor + Buff loaded")
