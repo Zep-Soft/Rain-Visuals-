@@ -1888,10 +1888,10 @@ closeBtn.Size = UDim2.new(0, 30, 0, 30)
 closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 70)
 closeBtn.BackgroundTransparency = 0.1
 closeBtn.BorderSizePixel = 0
-closeBtn.Text = "✕"
+closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.TextSize = 15
-closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Font = Enum.Font.FredokaOne
 closeBtn.AutoButtonColor = false
 closeBtn.Parent = header
 
@@ -2237,10 +2237,7 @@ makeToggle("Усиление", "⚡", "Buff", false, function(state)
 end)
 
 local eventsEnabled = false
-local eventTimer = 0
 local eventRunning = false
-local currentEventName = nil
-local currentEventEndTime = 0
 local EVENT_INTERVAL = 300
 local EVENTS_LIST = { "Торнадо", "Цунами", "Туман" }
 
@@ -2249,28 +2246,107 @@ local function setEventBadge(text, visible)
 	eventBadge.Visible = visible
 end
 
-local function pickRandomEvent()
-	local pick = EVENTS_LIST[math.random(1, #EVENTS_LIST)]
-	return pick
+local function makeRaycastFilter()
+	local char = player.Character
+	local ignore = {rainFolder, auraFolder, haloFolder, portalFolder, skyFolder, camera}
+	if char then
+		table.insert(ignore, char)
+	end
+	return ignore
+end
+
+local function hasGroundBelow(pos)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = makeRaycastFilter()
+	local result = workspace:Raycast(pos, Vector3.new(0, -50, 0), params)
+	return result ~= nil and result.Instance ~= nil
+end
+
+local function isSpotClear(pos)
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = makeRaycastFilter()
+	local parts = workspace:GetPartBoundsInBox(
+		CFrame.new(pos + Vector3.new(0, 40, 0)),
+		Vector3.new(15, 80, 15),
+		params
+	)
+	for _, p in ipairs(parts) do
+		if p:IsA("BasePart") then
+			local s = p.Size
+			if s.X > 6 or s.Y > 6 or s.Z > 6 then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+local function findParkourSpot()
+	local char = player.Character
+	if not char then return nil end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil end
+	local origin = hrp.Position
+
+	for i = 0, 7 do
+		local angle = (i / 8) * math.pi * 2
+		local offset = Vector3.new(math.cos(angle) * 15, 0, math.sin(angle) * 15)
+		local candidate = origin + offset
+
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = makeRaycastFilter()
+		local groundResult = workspace:Raycast(candidate + Vector3.new(0, 5, 0), Vector3.new(0, -50, 0), params)
+		if groundResult and groundResult.Instance then
+			local groundPos = groundResult.Position + Vector3.new(0, 0.5, 0)
+			if isSpotClear(groundPos) then
+				return groundPos
+			end
+		end
+	end
+
+	return nil
+end
+
+local function runTornado()
+	print("Ивент запущен: Торнадо")
+	task.wait(65)
+	return true
+end
+
+local function runTsunami()
+	local spot = findParkourSpot()
+	if not spot then
+		print("Цунами: скип (не найдено место для паркура)")
+		return false
+	end
+	print("Ивент запущен: Цунами")
+	task.wait(25)
+	return true
+end
+
+local function runFog()
+	print("Ивент запущен: Туман + NPC")
+	task.wait(120)
+	return true
 end
 
 local function runEventByName(name)
 	if name == "Торнадо" then
-		print("Ивент запущен: Торнадо")
-		task.wait(65)
+		return runTornado()
 	elseif name == "Цунами" then
-		print("Ивент запущен: Цунами")
-		task.wait(25)
+		return runTsunami()
 	elseif name == "Туман" then
-		print("Ивент запущен: Туман + NPC")
-		task.wait(120)
+		return runFog()
 	end
+	return false
 end
 
 local function startEventLoop()
 	task.spawn(function()
 		while eventsEnabled do
-			eventRunning = false
 			local waitStart = tick()
 			while eventsEnabled and tick() - waitStart < EVENT_INTERVAL do
 				local remaining = EVENT_INTERVAL - (tick() - waitStart)
@@ -2281,41 +2357,42 @@ local function startEventLoop()
 			end
 			if not eventsEnabled then break end
 
-			eventRunning = true
-			local chosen = pickRandomEvent()
-			currentEventName = chosen
-
-			if chosen == "Цунами" then
-				setEventBadge("⚠ ЦУНАМИ", true)
-			elseif chosen == "Торнадо" then
-				setEventBadge("⚠ ТОРНАДО 65", true)
-			elseif chosen == "Туман" then
-				setEventBadge("⚠ ТУМАН 120", true)
+			local pool = {}
+			for _, name in ipairs(EVENTS_LIST) do
+				table.insert(pool, name)
 			end
 
-			local duration = 0
-			if chosen == "Торнадо" then duration = 65
-			elseif chosen == "Цунами" then duration = 25
-			elseif chosen == "Туман" then duration = 120 end
+			local launched = false
+			while eventsEnabled and #pool > 0 do
+				local idx = math.random(1, #pool)
+				local chosen = pool[idx]
+				table.remove(pool, idx)
 
-			local eventStart = tick()
-			if chosen ~= "Цунами" then
-				task.spawn(function()
-					while eventsEnabled and eventRunning do
-						local rem = duration - (tick() - eventStart)
-						if rem <= 0 then break end
-						local mins = math.floor(rem / 60)
-						local secs = math.floor(rem % 60)
-						setEventBadge(string.format("⚠ %s %d:%02d", string.upper(chosen), mins, secs), true)
-						task.wait(0.25)
-					end
-				end)
+				eventRunning = true
+
+				if chosen == "Цунами" then
+					setEventBadge("⚠ ЦУНАМИ", true)
+				elseif chosen == "Торнадо" then
+					setEventBadge("⚠ ТОРНАДО", true)
+				elseif chosen == "Туман" then
+					setEventBadge("⚠ ТУМАН", true)
+				end
+
+				local ok = runEventByName(chosen)
+
+				eventRunning = false
+				setEventBadge("", false)
+
+				if ok then
+					launched = true
+					break
+				end
 			end
 
-			runEventByName(chosen)
-
-			eventRunning = false
-			setEventBadge("", false)
+			if not eventsEnabled then break end
+			if not launched then
+				task.wait(1)
+			end
 		end
 		setEventBadge("", false)
 	end)
