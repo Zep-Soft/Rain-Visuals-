@@ -2238,7 +2238,7 @@ end)
 
 local eventsEnabled = false
 local eventRunning = false
-local EVENT_INTERVAL = 300
+local EVENT_INTERVAL = 5
 local EVENTS_LIST = { "Торнадо", "Цунами", "Туман" }
 
 local function setEventBadge(text, visible)
