@@ -2240,6 +2240,8 @@ local eventsEnabled = false
 local eventRunning = false
 local EVENT_INTERVAL = 5
 local EVENTS_LIST = { "Торнадо", "Цунами", "Туман" }
+local activeEventObjects = nil
+local currentEventCancelled = false
 
 local function setEventBadge(text, visible)
 	eventBadge.Text = text
@@ -2251,6 +2253,9 @@ local function makeRaycastFilter()
 	local ignore = {rainFolder, auraFolder, haloFolder, portalFolder, skyFolder, camera}
 	if char then
 		table.insert(ignore, char)
+	end
+	if activeEventObjects then
+		table.insert(ignore, activeEventObjects)
 	end
 	return ignore
 end
@@ -2310,9 +2315,160 @@ local function findParkourSpot()
 	return nil
 end
 
+local function getPlayerHumanoid()
+	local char = player.Character
+	if not char then return nil end
+	return char:FindFirstChildOfClass("Humanoid")
+end
+
+local function isPlayerDead()
+	local hum = getPlayerHumanoid()
+	if not hum then return true end
+	return hum.Health <= 0
+end
+
 local function runTornado()
-	print("Ивент запущен: Торнадо")
-	task.wait(65)
+	activeEventObjects = Instance.new("Folder")
+	activeEventObjects.Name = "EventTornado"
+	activeEventObjects.Parent = workspace
+
+	local char = player.Character
+	if not char then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+		return false
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+		return false
+	end
+
+	local count = 800
+	local height = 60
+	local moveSpeed = 15
+	local pullRadius = 15
+	local pullForce = 25
+	local deathTimer = 3
+
+	local origin = hrp.Position
+	local spawnAngle = math.random() * math.pi * 2
+	local center = origin + Vector3.new(math.cos(spawnAngle) * 40, 0, math.sin(spawnAngle) * 40)
+	center = Vector3.new(center.X, origin.Y, center.Z)
+
+	local moveAngle = math.random() * math.pi * 2
+	local moveDir = Vector3.new(math.cos(moveAngle), 0, math.sin(moveAngle))
+
+	local parts = {}
+	for i = 1, count do
+		local p = Instance.new("Part")
+		p.Shape = Enum.PartType.Block
+		p.Size = Vector3.new(0.6, 0.6, 0.6)
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.Massless = true
+		p.Material = Enum.Material.Neon
+		p.Transparency = 0.15
+		p.Color = Color3.fromHSV(math.random(), 0.7, 1)
+		p.Parent = activeEventObjects
+
+		local t = i / count
+		local h = t * height
+		local baseRadius = 3 + t * 12
+		local angle = math.random() * math.pi * 2
+		local radiusVariation = 0.7 + math.random() * 0.6
+
+		table.insert(parts, {
+			part = p,
+			h = h,
+			baseRadius = baseRadius * radiusVariation,
+			angle = angle,
+			angleSpeed = 1.5 + math.random() * 1.5,
+			bobPhase = math.random() * math.pi * 2,
+			hue = math.random(),
+		})
+	end
+
+	currentEventCancelled = false
+	local startTime = tick()
+	local caughtPlayer = false
+	local caughtTime = 0
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if currentEventCancelled then
+			conn:Disconnect()
+			return
+		end
+
+		local elapsed = tick() - startTime
+		if elapsed > 65 then
+			conn:Disconnect()
+			return
+		end
+
+		center = center + moveDir * moveSpeed * dt
+
+		local hum = getPlayerHumanoid()
+		if hum and hum.Health > 0 then
+			local hrp2 = char:FindFirstChild("HumanoidRootPart")
+			if hrp2 then
+				local flatCenter = Vector3.new(center.X, hrp2.Position.Y, center.Z)
+				local dist = (hrp2.Position - flatCenter).Magnitude
+				if dist < pullRadius then
+					caughtPlayer = true
+					local dir = (flatCenter - hrp2.Position)
+					if dir.Magnitude > 0.1 then
+						hrp2.AssemblyLinearVelocity = dir.Unit * pullForce
+					end
+				end
+			end
+		end
+
+		if caughtPlayer then
+			if caughtTime == 0 then
+				caughtTime = tick()
+			end
+			if tick() - caughtTime >= deathTimer then
+				local h = getPlayerHumanoid()
+				if h then
+					h.Health = 0
+				end
+				caughtPlayer = false
+				caughtTime = 0
+			end
+		end
+
+		for _, d in ipairs(parts) do
+			d.angle = d.angle + d.angleSpeed * dt
+			local wobble = math.sin(tick() * 3 + d.bobPhase) * 0.5
+			local r = d.baseRadius + wobble
+			local x = math.cos(d.angle) * r
+			local z = math.sin(d.angle) * r
+			local pos = center + Vector3.new(x, d.h + wobble * 0.3, z)
+			d.part.CFrame = CFrame.new(pos) * CFrame.Angles(d.angle, d.angle * 0.5, 0)
+			d.part.Color = Color3.fromHSV((d.hue + elapsed * 0.1) % 1, 0.7, 1)
+		end
+	end)
+
+	while not currentEventCancelled and (tick() - startTime) < 65 do
+		if isPlayerDead() then
+			currentEventCancelled = true
+			break
+		end
+		task.wait(0.1)
+	end
+
+	conn:Disconnect()
+	task.wait(5)
+	if activeEventObjects then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+	end
+
 	return true
 end
 
@@ -2322,14 +2478,278 @@ local function runTsunami()
 		print("Цунами: скип (не найдено место для паркура)")
 		return false
 	end
-	print("Ивент запущен: Цунами")
-	task.wait(25)
+
+	activeEventObjects = Instance.new("Folder")
+	activeEventObjects.Name = "EventTsunami"
+	activeEventObjects.Parent = workspace
+
+	local char = player.Character
+	if not char then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+		return false
+	end
+
+	local platformCount = 20
+	local stepForward = 6
+	local stepUp = 4
+	local platformSize = Vector3.new(6, 0.5, 6)
+
+	local plats = {}
+	for i = 1, platformCount do
+		local p = Instance.new("Part")
+		p.Size = platformSize
+		p.Anchored = true
+		p.CanCollide = true
+		p.CanTouch = false
+		p.CanQuery = false
+		p.Material = Enum.Material.Neon
+		p.Color = Color3.fromHSV(i / platformCount, 1, 1)
+		p.Parent = activeEventObjects
+
+		local side = (i % 2 == 0) and 1 or -1
+		local offsetX = side * stepForward * 0.5
+		local pos = spot + Vector3.new(i * stepForward * 0.5, i * stepUp, 0)
+		p.CFrame = CFrame.new(pos)
+		table.insert(plats, p)
+	end
+
+	local topPos = spot + Vector3.new(0, platformCount * stepUp + 5, 0)
+
+	local waveWidth = 180
+	local waveHeight = 75
+	local waveSpeed = 7
+
+	local waveFolder = Instance.new("Folder")
+	waveFolder.Name = "Wave"
+	waveFolder.Parent = activeEventObjects
+
+	local waveParts = {}
+	local rows = 6
+	local cols = 12
+	for r = 1, rows do
+		for c = 1, cols do
+			local wp = Instance.new("Part")
+			wp.Size = Vector3.new(waveWidth / cols, waveHeight / rows, 4)
+			wp.Anchored = true
+			wp.CanCollide = false
+			wp.CanTouch = false
+			wp.CanQuery = false
+			wp.Material = Enum.Material.SmoothPlastic
+			wp.Color = Color3.fromRGB(30, 100, 200)
+			wp.Transparency = 0.3
+			wp.Parent = waveFolder
+			table.insert(waveParts, {part = wp, r = r, c = c})
+		end
+	end
+
+	local startX = spot.X - waveWidth / 2
+	local endX = spot.X + waveWidth / 2
+	local waveStartZ = spot.Z + 200
+	local waveEndZ = spot.Z - 100
+
+	local waveZ = waveStartZ
+	local startTime = tick()
+	currentEventCancelled = false
+	local playerSafe = false
+	local playerHit = false
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if currentEventCancelled then
+			conn:Disconnect()
+			return
+		end
+
+		waveZ = waveZ - waveSpeed * dt
+
+		for _, w in ipairs(waveParts) do
+			local localX = (w.c - 1) * (waveWidth / cols) + (waveWidth / cols / 2)
+			local localY = (w.r - 1) * (waveHeight / rows) + (waveHeight / rows / 2)
+			local x = startX + localX
+			local y = spot.Y + localY
+			local zOffset = math.sin(tick() * 2 + w.c * 0.3 + w.r * 0.5) * 1.5
+			w.part.CFrame = CFrame.new(x, y, waveZ + zOffset)
+		end
+
+		local hrp2 = char:FindFirstChild("HumanoidRootPart")
+		if hrp2 then
+			local waveFront = waveZ
+			if hrp2.Position.Z < waveFront + 2 and not playerHit then
+				local hum = getPlayerHumanoid()
+				if hum and hum.Health > 0 then
+					if hrp2.Position.Y < topPos.Y - 5 then
+						hum.Health = 0
+						playerHit = true
+					end
+				end
+			end
+
+			if hrp2.Position.Y >= topPos.Y - 3 then
+				playerSafe = true
+			end
+		end
+
+		if waveZ < waveEndZ then
+			conn:Disconnect()
+		end
+	end)
+
+	while not currentEventCancelled and waveZ >= waveEndZ do
+		if isPlayerDead() then
+			currentEventCancelled = true
+			break
+		end
+		task.wait(0.1)
+	end
+
+	conn:Disconnect()
+	task.wait(5)
+	if activeEventObjects then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+	end
+
 	return true
 end
 
 local function runFog()
-	print("Ивент запущен: Туман + NPC")
-	task.wait(120)
+	activeEventObjects = Instance.new("Folder")
+	activeEventObjects.Name = "EventFog"
+	activeEventObjects.Parent = workspace
+
+	local char = player.Character
+	if not char then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+		return false
+	end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+		return false
+	end
+
+	local oldFogEnd = Lighting.FogEnd
+	local oldFogStart = Lighting.FogStart
+	local oldFogColor = Lighting.FogColor
+	local oldAmbient = Lighting.Ambient
+
+	Lighting.FogColor = Color3.fromRGB(180, 180, 180)
+	Lighting.FogStart = 0
+	Lighting.FogEnd = 35
+
+	local fogOverlayGui = Instance.new("ScreenGui")
+	fogOverlayGui.Name = "FogOverlay"
+	fogOverlayGui.ResetOnSpawn = false
+	fogOverlayGui.IgnoreGuiInset = true
+	fogOverlayGui.DisplayOrder = 90
+	fogOverlayGui.Parent = player:WaitForChild("PlayerGui")
+
+	local fogFrame = Instance.new("Frame")
+	fogFrame.Size = UDim2.fromScale(1, 1)
+	fogFrame.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+	fogFrame.BackgroundTransparency = 0.7
+	fogFrame.BorderSizePixel = 0
+	fogFrame.Parent = fogOverlayGui
+
+	local npcs = {}
+	for i = 1, 5 do
+		local npcModel = Instance.new("Model")
+		npcModel.Name = "FogNPC"
+		npcModel.Parent = activeEventObjects
+
+		local torso = Instance.new("Part")
+		torso.Name = "Torso"
+		torso.Size = Vector3.new(2, 2, 1)
+		torso.Anchored = false
+		torso.CanCollide = true
+		torso.Material = Enum.Material.SmoothPlastic
+		torso.Color = Color3.fromRGB(20, 20, 20)
+		torso.Transparency = 0.2
+		torso.Parent = npcModel
+
+		local head = Instance.new("Part")
+		head.Name = "Head"
+		head.Shape = Enum.PartType.Ball
+		head.Size = Vector3.new(1.2, 1.2, 1.2)
+		head.Anchored = false
+		head.CanCollide = false
+		head.Material = Enum.Material.Neon
+		head.Color = Color3.fromRGB(200, 30, 30)
+		head.Parent = npcModel
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = torso
+		weld.Part1 = head
+		weld.Parent = torso
+		head.CFrame = torso.CFrame * CFrame.new(0, 1.6, 0)
+
+		local angle = (i / 5) * math.pi * 2
+		local spawnOffset = Vector3.new(math.cos(angle) * 30, 2, math.sin(angle) * 30)
+		torso.CFrame = CFrame.new(hrp.Position + spawnOffset)
+
+		table.insert(npcs, {
+			model = npcModel,
+			torso = torso,
+			head = head,
+			lastHit = 0,
+		})
+	end
+
+	currentEventCancelled = false
+	local startTime = tick()
+
+	while not currentEventCancelled and (tick() - startTime) < 120 do
+		if isPlayerDead() then
+			currentEventCancelled = true
+			break
+		end
+
+		local hrp2 = char:FindFirstChild("HumanoidRootPart")
+		if hrp2 then
+			for _, npc in ipairs(npcs) do
+				if npc.torso and npc.torso.Parent then
+					local dir = (hrp2.Position - npc.torso.Position)
+					local flatDir = Vector3.new(dir.X, 0, dir.Z)
+					if flatDir.Magnitude > 0.1 then
+						npc.torso.AssemblyLinearVelocity = flatDir.Unit * 14 + Vector3.new(0, npc.torso.AssemblyLinearVelocity.Y, 0)
+					end
+
+					local dist = (npc.torso.Position - hrp2.Position).Magnitude
+					if dist < 4 then
+						local now = tick()
+						if now - npc.lastHit > 3 then
+							npc.lastHit = now
+							local hum = getPlayerHumanoid()
+							if hum then
+								hum.Health = hum.Health - 25
+							end
+						end
+					end
+				end
+			end
+		end
+
+		task.wait(0.1)
+	end
+
+	Lighting.FogColor = oldFogColor
+	Lighting.FogStart = oldFogStart
+	Lighting.FogEnd = oldFogEnd
+	Lighting.Ambient = oldAmbient
+
+	if fogOverlayGui then
+		fogOverlayGui:Destroy()
+	end
+
+	task.wait(5)
+	if activeEventObjects then
+		activeEventObjects:Destroy()
+		activeEventObjects = nil
+	end
+
 	return true
 end
 
@@ -2404,6 +2824,11 @@ makeEventToggle("Ивенты", "🎲", "Events", false, "раз в 5 минут
 		startEventLoop()
 	else
 		eventRunning = false
+		currentEventCancelled = true
+		if activeEventObjects then
+			activeEventObjects:Destroy()
+			activeEventObjects = nil
+		end
 		setEventBadge("", false)
 	end
 end)
@@ -2526,4 +2951,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Events loaded")
+print("Rain Visual + Meteor + Buff + Events v2 loaded")
