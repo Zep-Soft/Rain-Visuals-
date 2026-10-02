@@ -13,6 +13,8 @@ local camera = workspace.CurrentCamera
 
 local currentMode = "Rainbow"
 
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = false }
+
 Lighting.ClockTime = 0
 Lighting.Brightness = 0.5
 Lighting.Ambient = Color3.fromRGB(40, 40, 50)
@@ -60,17 +62,12 @@ local function createLayer(count, size, speed, spread, height, useLight)
 		end
 		local spd = speed + math.random(-30, 30)
 		table.insert(layer, {
-			part = p,
-			hue = math.random(),
+			part = p, hue = math.random(),
 			offsetX = (math.random() - 0.5) * spread * 2,
 			offsetZ = (math.random() - 0.5) * spread * 2,
 			offsetY = math.random() * height,
-			baseSpeed = speed,
-			speed = spd,
-			originalSpeed = spd,
-			slantOffsetX = 0,
-			spread = spread,
-			maxHeight = height,
+			baseSpeed = speed, speed = spd, originalSpeed = spd,
+			slantOffsetX = 0, spread = spread, maxHeight = height,
 		})
 	end
 	return layer
@@ -171,9 +168,7 @@ local function spawnSkyDigit()
 	label.Parent = sg
 	table.insert(skyDigits, {part = p, gui = sg, label = label})
 	task.delay(0.2, function()
-		if p and p.Parent then
-			p:Destroy()
-		end
+		if p and p.Parent then p:Destroy() end
 	end)
 end
 
@@ -181,9 +176,7 @@ task.spawn(function()
 	while true do
 		task.wait(0.2)
 		if currentMode == "Hacker" then
-			for i = 1, 3 do
-				spawnSkyDigit()
-			end
+			for i = 1, 3 do spawnSkyDigit() end
 		end
 	end
 end)
@@ -272,10 +265,7 @@ for i = 1, auraCount do
 		hackerRadius = auraRadius + (math.random() - 0.5) * 1.5,
 		hackerJitter = math.random() * 0.3,
 		hackerSpeed = math.random(0.8, 2.5),
-		linkProgress = 0,
-		assignedTarget = nil,
-		assignedSlot = 0,
-		lastLinePos = nil,
+		linkProgress = 0, assignedTarget = nil, assignedSlot = 0, lastLinePos = nil,
 	})
 end
 
@@ -367,9 +357,7 @@ local function updateAuraPulse(dt)
 	elseif pulseState.phase == "exhale" then
 		local t = math.min(1, pulseState.phaseTime / 1.2)
 		local e = 1 - (1 - t) * (1 - t)
-		for _, a in ipairs(auraParts) do
-			a.radius = 2.8 + (9 - 2.8) * e
-		end
+		for _, a in ipairs(auraParts) do a.radius = 2.8 + (9 - 2.8) * e end
 		if pulseState.phaseTime >= 1.2 then
 			pulseState.phase = "jitter"
 			pulseState.phaseTime = 0
@@ -379,9 +367,7 @@ local function updateAuraPulse(dt)
 		pulseState.jitterTimer = (pulseState.jitterTimer or 0) + dt
 		if pulseState.jitterTimer >= 0.1 then
 			pulseState.jitterTimer = 0
-			for _, a in ipairs(auraParts) do
-				a.radius = 2.5 + math.random() * 8
-			end
+			for _, a in ipairs(auraParts) do a.radius = 2.5 + math.random() * 8 end
 		end
 		if pulseState.phaseTime >= 2.0 then
 			pulseState.phase = "return"
@@ -395,9 +381,7 @@ local function updateAuraPulse(dt)
 			a.radius = a.radius + (targetR - a.radius) * e
 		end
 		if pulseState.phaseTime >= 0.5 then
-			for _, a in ipairs(auraParts) do
-				a.radius = a.baseRadius or auraRadius
-			end
+			for _, a in ipairs(auraParts) do a.radius = a.baseRadius or auraRadius end
 			pulseState = nil
 		end
 	end
@@ -475,9 +459,7 @@ RunService.RenderStepped:Connect(function(dt)
 			elseif a.lastLinePos and a.linkProgress > 0 then
 				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
 				finalPos = orbitPos:Lerp(a.lastLinePos, ease)
-				if a.linkProgress <= 0 then
-					a.lastLinePos = nil
-				end
+				if a.linkProgress <= 0 then a.lastLinePos = nil end
 			end
 
 			a.part.CFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
@@ -750,7 +732,8 @@ local function createPortal(position)
 	innerCore.CanCollide = false
 	innerCore.CanTouch = false
 	innerCore.CanQuery = false
-	innerCore.Massless = true	innerCore.Material = Enum.Material.Neon
+	innerCore.Massless = true
+	innerCore.Material = Enum.Material.Neon
 	innerCore.Color = Color3.fromRGB(220, 180, 255)
 	innerCore.Transparency = 0.2
 	innerCore.CFrame = CFrame.new(position)
@@ -945,9 +928,7 @@ local function createTeleportEffect(position)
 			Size = Vector3.new(0.05, 0.05, 0.05),
 		}):Play()
 		task.delay(0.9, function()
-			if p and p.Parent then
-				p:Destroy()
-			end
+			if p and p.Parent then p:Destroy() end
 		end)
 	end
 	task.delay(1.2, function()
@@ -1526,8 +1507,6 @@ local function triggerBuff()
 		buffRunning = false
 	end)
 end
-
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = false }
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -2505,15 +2484,11 @@ makeToggle("Портал", "🌀", "Portal", false, function(state)
 end, 9)
 makeToggle("Метеорит", "🪨", "Meteor", false, function(state)
 	meteorEnabled = state
-	if meteorBtn then
-		meteorBtn.Visible = state
-	end
+	if meteorBtn then meteorBtn.Visible = state end
 end, 10)
 makeToggle("Усиление", "⚡", "Buff", false, function(state)
 	buffEnabled = state
-	if buffBtn then
-		buffBtn.Visible = state
-	end
+	if buffBtn then buffBtn.Visible = state end
 end, 11)
 
 portalBtn.MouseButton1Click:Connect(function()
