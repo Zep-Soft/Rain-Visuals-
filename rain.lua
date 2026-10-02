@@ -756,7 +756,8 @@ local function createPortal(position)
 	local coreSphere = Instance.new("Part")
 	coreSphere.Shape = Enum.PartType.Ball
 	coreSphere.Size = Vector3.new(PORTAL_RADIUS * 1.9, PORTAL_RADIUS * 1.9, PORTAL_RADIUS * 1.9)
-	coreSphere.Anchored = true	coreSphere.CanCollide = false
+	coreSphere.Anchored = true
+	coreSphere.CanCollide = false
 	coreSphere.CanTouch = false
 	coreSphere.CanQuery = false
 	coreSphere.Massless = true
