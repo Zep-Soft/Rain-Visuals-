@@ -13,7 +13,7 @@ local camera = workspace.CurrentCamera
 
 local currentMode = "Rainbow"
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = false }
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = false, Fireball = false }
 
 Lighting.ClockTime = 0
 Lighting.Brightness = 0.5
@@ -1508,6 +1508,519 @@ local function triggerBuff()
 	end)
 end
 
+-- ===========================================================
+-- FIREBALL TOOL (по кнопке, авто-возврат в инвентарь)
+-- ===========================================================
+local fbBackpack = player:WaitForChild("Backpack")
+local FB_COOLDOWN = 1.2
+local fbIsOnCooldown = false
+local fbEnabled = false
+
+local fireTool = Instance.new("Tool")
+fireTool.Name = "🔥 Огненный шар"
+fireTool.RequiresHandle = true
+fireTool.CanBeDropped = false
+fireTool.ToolTip = "Тапни куда кинуть"
+
+local fireHandle = Instance.new("Part")
+fireHandle.Name = "Handle"
+fireHandle.Size = Vector3.new(1, 1, 1)
+fireHandle.Transparency = 1
+fireHandle.CanCollide = false
+fireHandle.Massless = true
+fireHandle.Parent = fireTool
+
+fireTool.Parent = nil
+
+local fbOrbFolder = Instance.new("Folder")
+fbOrbFolder.Name = "EnergyOrb"
+fbOrbFolder.Parent = nil
+
+local fbCore = Instance.new("Part")
+fbCore.Shape = Enum.PartType.Ball
+fbCore.Size = Vector3.new(0.7, 0.7, 0.7)
+fbCore.Anchored = true
+fbCore.CanCollide = false
+fbCore.CanTouch = false
+fbCore.CanQuery = false
+fbCore.Massless = true
+fbCore.Material = Enum.Material.Neon
+fbCore.Color = Color3.fromRGB(255, 240, 180)
+fbCore.Transparency = 0.1
+fbCore.Parent = fbOrbFolder
+
+local fbCoreLight = Instance.new("PointLight")
+fbCoreLight.Color = Color3.fromRGB(255, 220, 120)
+fbCoreLight.Range = 10
+fbCoreLight.Brightness = 5
+fbCoreLight.Parent = fbCore
+
+local fbMidCore = Instance.new("Part")
+fbMidCore.Shape = Enum.PartType.Ball
+fbMidCore.Size = Vector3.new(1.6, 1.6, 1.6)
+fbMidCore.Anchored = true
+fbMidCore.CanCollide = false
+fbMidCore.CanTouch = false
+fbMidCore.CanQuery = false
+fbMidCore.Massless = true
+fbMidCore.Material = Enum.Material.Neon
+fbMidCore.Color = Color3.fromRGB(255, 200, 80)
+fbMidCore.Transparency = 0.7
+fbMidCore.Parent = fbOrbFolder
+
+local fbHalo = Instance.new("Part")
+fbHalo.Shape = Enum.PartType.Ball
+fbHalo.Size = Vector3.new(2.4, 2.4, 2.4)
+fbHalo.Anchored = true
+fbHalo.CanCollide = false
+fbHalo.CanTouch = false
+fbHalo.CanQuery = false
+fbHalo.Massless = true
+fbHalo.Material = Enum.Material.Neon
+fbHalo.Color = Color3.fromRGB(255, 170, 60)
+fbHalo.Transparency = 0.92
+fbHalo.Parent = fbOrbFolder
+
+local fbHaloLight = Instance.new("PointLight")
+fbHaloLight.Color = Color3.fromRGB(255, 180, 60)
+fbHaloLight.Range = 14
+fbHaloLight.Brightness = 3
+fbHaloLight.Parent = fbHalo
+
+local fbSphereParts = {}
+local FB_SPHERE_COUNT = 250
+
+for i = 1, FB_SPHERE_COUNT do
+	local p = Instance.new("Part")
+	p.Shape = Enum.PartType.Ball
+	p.Size = Vector3.new(0.12, 0.12, 0.12)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CanQuery = false
+	p.Massless = true
+	p.Material = Enum.Material.Neon
+	p.Transparency = 0.1
+	p.Parent = fbOrbFolder
+
+	local phi = math.acos(1 - 2 * (i - 0.5) / FB_SPHERE_COUNT)
+	local theta = math.pi * (1 + 5 ^ 0.5) * (i - 0.5)
+	local baseRadius = 1.2 + math.random() * 0.3
+
+	table.insert(fbSphereParts, {
+		part = p,
+		phi = phi,
+		theta = theta,
+		baseRadius = baseRadius,
+		baseHue = (i / FB_SPHERE_COUNT),
+		turbPhaseX = math.random() * math.pi * 2,
+		turbPhaseY = math.random() * math.pi * 2,
+		turbPhaseZ = math.random() * math.pi * 2,
+		turbSpeedX = 0.8 + math.random() * 2.2,
+		turbSpeedY = 0.8 + math.random() * 2.2,
+		turbSpeedZ = 0.8 + math.random() * 2.2,
+		turbAmp = 0.06 + math.random() * 0.12,
+		pulsePhase = math.random() * math.pi * 2,
+		pulseSpeed = 1.5 + math.random() * 2,
+		pulseAmp = 0.04 + math.random() * 0.06,
+		flickerPhase = math.random() * math.pi * 2,
+		flickerSpeed = 4 + math.random() * 6,
+	})
+end
+
+local fbProjectileFolder = Instance.new("Folder")
+fbProjectileFolder.Name = "Fireballs"
+fbProjectileFolder.Parent = workspace
+
+local fbT = 0
+
+local function fbCreateExplosion(position)
+	local explosionFolder = Instance.new("Folder")
+	explosionFolder.Parent = workspace
+
+	local lightPart = Instance.new("Part")
+	lightPart.Size = Vector3.new(0.1, 0.1, 0.1)
+	lightPart.Anchored = true
+	lightPart.CanCollide = false
+	lightPart.CanTouch = false
+	lightPart.CanQuery = false
+	lightPart.Transparency = 1
+	lightPart.Position = position
+	lightPart.Parent = explosionFolder
+
+	local flashLight = Instance.new("PointLight")
+	flashLight.Color = Color3.fromRGB(255, 200, 100)
+	flashLight.Range = 35
+	flashLight.Brightness = 15
+	flashLight.Parent = lightPart
+
+	TweenService:Create(flashLight, TweenInfo.new(1.2), {
+		Brightness = 0,
+		Range = 70,
+	}):Play()
+
+	for batch = 1, 5 do
+		task.delay((batch - 1) * 0.02, function()
+			for i = 1, 50 do
+				local p = Instance.new("Part")
+				p.Shape = Enum.PartType.Ball
+				p.Size = Vector3.new(0.3, 0.3, 0.3)
+				p.Anchored = true
+				p.CanCollide = false
+				p.CanTouch = false
+				p.CanQuery = false
+				p.Massless = true
+				p.Material = Enum.Material.Neon
+
+				local roll = math.random()
+				if roll > 0.66 then
+					p.Color = Color3.fromRGB(255, 255, 220)
+				elseif roll > 0.33 then
+					p.Color = Color3.fromRGB(255, 220, 120)
+				else
+					p.Color = Color3.fromRGB(255, 170, 60)
+				end
+
+				p.Transparency = 0.1
+				p.Position = position
+				p.Parent = explosionFolder
+
+				local dir = Vector3.new(
+					(math.random() - 0.5) * 2,
+					(math.random() - 0.5) * 2,
+					(math.random() - 0.5) * 2
+				).Unit
+
+				TweenService:Create(p, TweenInfo.new(1.2 + math.random() * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Position = position + dir * (15 + math.random() * 25),
+					Transparency = 1,
+					Size = Vector3.new(0.03, 0.03, 0.03),
+				}):Play()
+			end
+		end)
+	end
+
+	task.delay(2.5, function()
+		if explosionFolder and explosionFolder.Parent then
+			explosionFolder:Destroy()
+		end
+	end)
+end
+
+local function fbCreateFireballVisual(position)
+	local group = Instance.new("Folder")
+	group.Parent = fbProjectileFolder
+
+	local fCore = Instance.new("Part")
+	fCore.Shape = Enum.PartType.Ball
+	fCore.Size = Vector3.new(0.7, 0.7, 0.7)
+	fCore.Anchored = true
+	fCore.CanCollide = false
+	fCore.CanTouch = false
+	fCore.CanQuery = false
+	fCore.Massless = true
+	fCore.Material = Enum.Material.Neon
+	fCore.Color = Color3.fromRGB(255, 240, 180)
+	fCore.Transparency = 0.1
+	fCore.CFrame = CFrame.new(position)
+	fCore.Parent = group
+
+	local fMid = Instance.new("Part")
+	fMid.Shape = Enum.PartType.Ball
+	fMid.Size = Vector3.new(1.6, 1.6, 1.6)
+	fMid.Anchored = true
+	fMid.CanCollide = false
+	fMid.CanTouch = false
+	fMid.CanQuery = false
+	fMid.Massless = true
+	fMid.Material = Enum.Material.Neon
+	fMid.Color = Color3.fromRGB(255, 200, 80)
+	fMid.Transparency = 0.7
+	fMid.CFrame = CFrame.new(position)
+	fMid.Parent = group
+
+	local fHalo = Instance.new("Part")
+	fHalo.Shape = Enum.PartType.Ball
+	fHalo.Size = Vector3.new(2.4, 2.4, 2.4)
+	fHalo.Anchored = true
+	fHalo.CanCollide = false
+	fHalo.CanTouch = false
+	fHalo.CanQuery = false
+	fHalo.Massless = true
+	fHalo.Material = Enum.Material.Neon
+	fHalo.Color = Color3.fromRGB(255, 170, 60)
+	fHalo.Transparency = 0.92
+	fHalo.CFrame = CFrame.new(position)
+	fHalo.Parent = group
+
+	local fLight = Instance.new("PointLight")
+	fLight.Color = Color3.fromRGB(255, 220, 120)
+	fLight.Range = 12
+	fLight.Brightness = 5
+	fLight.Parent = fCore
+
+	local fParts = {}
+	for i = 1, FB_SPHERE_COUNT do
+		local p = Instance.new("Part")
+		p.Shape = Enum.PartType.Ball
+		p.Size = Vector3.new(0.12, 0.12, 0.12)
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CanQuery = false
+		p.Massless = true
+		p.Material = Enum.Material.Neon
+		p.Transparency = 0.1
+		p.Parent = group
+
+		local phi = math.acos(1 - 2 * (i - 0.5) / FB_SPHERE_COUNT)
+		local theta = math.pi * (1 + 5 ^ 0.5) * (i - 0.5)
+		local baseRadius = 1.2 + math.random() * 0.3
+
+		table.insert(fParts, {
+			part = p,
+			phi = phi,
+			theta = theta,
+			baseRadius = baseRadius,
+			baseHue = (i / FB_SPHERE_COUNT),
+			turbPhaseX = math.random() * math.pi * 2,
+			turbPhaseY = math.random() * math.pi * 2,
+			turbPhaseZ = math.random() * math.pi * 2,
+			turbSpeedX = 0.8 + math.random() * 2.2,
+			turbSpeedY = 0.8 + math.random() * 2.2,
+			turbSpeedZ = 0.8 + math.random() * 2.2,
+			turbAmp = 0.06 + math.random() * 0.12,
+			pulsePhase = math.random() * math.pi * 2,
+			pulseSpeed = 1.5 + math.random() * 2,
+			pulseAmp = 0.04 + math.random() * 0.06,
+			flickerPhase = math.random() * math.pi * 2,
+			flickerSpeed = 4 + math.random() * 6,
+		})
+	end
+
+	return {
+		group = group,
+		core = fCore,
+		mid = fMid,
+		halo = fHalo,
+		light = fLight,
+		sphereParts = fParts,
+	}
+end
+
+local function fbLaunchFireball(targetPos)
+	local char = player.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local rightHand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+	local startPos
+	if rightHand then
+		startPos = rightHand.Position + Vector3.new(0, 0.8, 0)
+	else
+		startPos = hrp.Position + Vector3.new(0, 2, 0)
+	end
+
+	local direction = (targetPos - startPos).Unit
+	local fb = fbCreateFireballVisual(startPos)
+
+	local speed = 80
+	local maxDist = 300
+	local travelled = 0
+	local alive = true
+	local fireballT = 0
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = {char, fbProjectileFolder, camera}
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if not alive then return end
+		fireballT = fireballT + dt
+
+		local currentPos = fb.core.Position
+		local moveVec = direction * speed * dt
+		local nextPos = currentPos + moveVec
+		travelled = travelled + moveVec.Magnitude
+
+		if travelled > maxDist then
+			alive = false
+			conn:Disconnect()
+			fbCreateExplosion(currentPos)
+			fb.group:Destroy()
+			return
+		end
+
+		local rayResult = workspace:Raycast(currentPos, moveVec, rayParams)
+		if rayResult then
+			alive = false
+			conn:Disconnect()
+			fbCreateExplosion(rayResult.Position)
+			fb.group:Destroy()
+			return
+		end
+
+		fb.core.CFrame = CFrame.new(nextPos)
+		fb.mid.CFrame = CFrame.new(nextPos)
+		fb.halo.CFrame = CFrame.new(nextPos)
+
+		local pulse = 1 + math.sin(fireballT * 12) * 0.12
+		fb.core.Size = Vector3.new(0.7, 0.7, 0.7) * pulse
+		fb.mid.Size = Vector3.new(1.6, 1.6, 1.6) * pulse
+		fb.halo.Size = Vector3.new(2.4, 2.4, 2.4) * pulse
+
+		fb.core.Color = Color3.fromHSV((fireballT * 0.08) % 0.1 + 0.1, 0.5, 1)
+		fb.mid.Color = Color3.fromHSV((fireballT * 0.08) % 0.12 + 0.08, 0.85, 1)
+		fb.halo.Color = Color3.fromHSV((fireballT * 0.08) % 0.1 + 0.05, 1, 1)
+
+		for _, s in ipairs(fb.sphereParts) do
+			local turbX = math.sin(fireballT * s.turbSpeedX + s.turbPhaseX) * s.turbAmp
+			local turbY = math.cos(fireballT * s.turbSpeedY + s.turbPhaseY) * s.turbAmp
+			local turbZ = math.sin(fireballT * s.turbSpeedZ + s.turbPhaseZ) * s.turbAmp
+			local pulseR = math.sin(fireballT * s.pulseSpeed + s.pulsePhase) * s.pulseAmp
+
+			local r = s.baseRadius + turbX + pulseR
+			local angle = s.theta
+
+			local px = nextPos.X + r * math.sin(s.phi) * math.cos(angle)
+			local py = nextPos.Y + r * math.cos(s.phi) + turbY
+			local pz = nextPos.Z + r * math.sin(s.phi) * math.sin(angle) + turbZ
+
+			s.part.CFrame = CFrame.new(px, py, pz)
+
+			local flicker = 0.75 + math.sin(fireballT * s.flickerSpeed + s.flickerPhase) * 0.25
+			local hueShift = (fireballT * 0.08 + s.baseHue * 0.15) % 0.15 + 0.05
+			s.part.Color = Color3.fromHSV(hueShift, 0.9, flicker)
+			s.part.Transparency = 0.1 + (1 - flicker) * 0.3
+		end
+	end)
+end
+
+local function fbGetMouseWorldTarget()
+	local mouseLocation = UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	local char = player.Character
+	local filterList = {fbProjectileFolder, camera}
+	if char then table.insert(filterList, char) end
+	rayParams.FilterDescendantsInstances = filterList
+
+	local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, rayParams)
+	if result then return result.Position
+	else return unitRay.Origin + unitRay.Direction * 500 end
+end
+
+fireTool.Activated:Connect(function()
+	if not fbEnabled then return end
+	if fbIsOnCooldown then return end
+	if fireTool.Parent ~= player.Character then return end
+
+	local targetPos = fbGetMouseWorldTarget()
+	fbLaunchFireball(targetPos)
+
+	fbIsOnCooldown = true
+	fbOrbFolder.Parent = nil
+
+	task.delay(FB_COOLDOWN, function()
+		fbIsOnCooldown = false
+		if fireTool.Parent == player.Character and fbEnabled then
+			fbOrbFolder.Parent = camera
+		end
+	end)
+end)
+
+fireTool.Equipped:Connect(function()
+	if not fbEnabled then return end
+	if not fbIsOnCooldown then
+		fbOrbFolder.Parent = camera
+	end
+end)
+
+fireTool.Unequipped:Connect(function()
+	fbOrbFolder.Parent = nil
+end)
+
+-- авто-возврат Tool в Backpack (если игра удалила)
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if fbEnabled then
+			if fireTool.Parent == nil or fireTool.Parent ~= fbBackpack and fireTool.Parent ~= player.Character then
+				fireTool.Parent = fbBackpack
+			end
+		else
+			if fireTool.Parent ~= nil then
+				fireTool.Parent = nil
+			end
+		end
+	end
+end)
+
+-- рендер шара в руке
+RunService.RenderStepped:Connect(function(dt)
+	fbT = fbT + dt
+
+	if not fbEnabled then return end
+	if fireTool.Parent ~= player.Character then return end
+	if fbIsOnCooldown then return end
+
+	local char = player.Character
+	if not char then return end
+
+	local rightHand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+	if not rightHand then return end
+
+	local handPos = rightHand.Position + Vector3.new(0, 1, 0) + rightHand.CFrame.LookVector * 1.2
+	local pulse = 1 + math.sin(fbT * 6) * 0.12
+
+	fbCore.Size = Vector3.new(0.7, 0.7, 0.7) * pulse
+	fbCore.CFrame = CFrame.new(handPos)
+	fbCore.Color = Color3.fromHSV((fbT * 0.08) % 0.1 + 0.1, 0.5, 1)
+
+	fbMidCore.Size = Vector3.new(1.6, 1.6, 1.6) * pulse
+	fbMidCore.CFrame = CFrame.new(handPos)
+	fbMidCore.Color = Color3.fromHSV((fbT * 0.08) % 0.12 + 0.08, 0.85, 1)
+
+	fbHalo.Size = Vector3.new(2.4, 2.4, 2.4) * pulse
+	fbHalo.CFrame = CFrame.new(handPos)
+	fbHalo.Color = Color3.fromHSV((fbT * 0.08) % 0.1 + 0.05, 1, 1)
+	fbHalo.Transparency = 0.88 + math.sin(fbT * 8) * 0.04
+
+	fbCoreLight.Color = fbCore.Color
+	fbHaloLight.Color = fbHalo.Color
+	fbCoreLight.Brightness = 5 + math.sin(fbT * 10) * 1
+	fbHaloLight.Brightness = 2.5 + math.sin(fbT * 12) * 0.5
+
+	for _, s in ipairs(fbSphereParts) do
+		local turbX = math.sin(fbT * s.turbSpeedX + s.turbPhaseX) * s.turbAmp
+		local turbY = math.cos(fbT * s.turbSpeedY + s.turbPhaseY) * s.turbAmp
+		local turbZ = math.sin(fbT * s.turbSpeedZ + s.turbPhaseZ) * s.turbAmp
+		local pulseR = math.sin(fbT * s.pulseSpeed + s.pulsePhase) * s.pulseAmp
+
+		local r = s.baseRadius + turbX + pulseR
+		local angle = s.theta
+
+		local px = handPos.X + r * math.sin(s.phi) * math.cos(angle)
+		local py = handPos.Y + r * math.cos(s.phi) + turbY
+		local pz = handPos.Z + r * math.sin(s.phi) * math.sin(angle) + turbZ
+
+		s.part.CFrame = CFrame.new(px, py, pz)
+
+		local flicker = 0.75 + math.sin(fbT * s.flickerSpeed + s.flickerPhase) * 0.25
+		local hueShift = (fbT * 0.08 + s.baseHue * 0.15) % 0.15 + 0.05
+		s.part.Color = Color3.fromHSV(hueShift, 0.9, flicker)
+		s.part.Transparency = 0.1 + (1 - flicker) * 0.3
+	end
+end)
+
+-----------------------------------------------------------
+-- UI
+-----------------------------------------------------------
+
 local pg = player:WaitForChild("PlayerGui")
 
 local screenGui = Instance.new("ScreenGui")
@@ -1520,7 +2033,7 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 10
+local NUM_BUTTONS = 11
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
@@ -2490,6 +3003,16 @@ makeToggle("Усиление", "⚡", "Buff", false, function(state)
 	buffEnabled = state
 	if buffBtn then buffBtn.Visible = state end
 end, 11)
+makeToggle("Огненный шар", "🔥", "Fireball", false, function(state)
+	fbEnabled = state
+	if state then
+		fireTool.Parent = fbBackpack
+	else
+		fireTool.Parent = nil
+		fbOrbFolder.Parent = nil
+		fbIsOnCooldown = false
+	end
+end, 12)
 
 portalBtn.MouseButton1Click:Connect(function()
 	if not portalEnabled then return end
@@ -2609,4 +3132,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v10 FIXED loaded")
+print("Rain Visual v11 + Fireball loaded")
