@@ -1897,7 +1897,7 @@ listPad.PaddingTop = UDim.new(0, 4)
 listPad.PaddingBottom = UDim.new(0, 12)
 listPad.Parent = listFrame
 
-local function makeToggle(name, icon, key, initial, callback)
+local function makeToggle(name, icon, key, initial, callback, layoutOrder)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
@@ -1905,6 +1905,7 @@ local function makeToggle(name, icon, key, initial, callback)
 	btn.BorderSizePixel = 0
 	btn.Text = ""
 	btn.AutoButtonColor = false
+	btn.LayoutOrder = layoutOrder or 0
 	btn.Parent = listFrame
 	local bC = Instance.new("UICorner")
 	bC.CornerRadius = UDim.new(0, 12)
@@ -1988,7 +1989,7 @@ local function makeToggle(name, icon, key, initial, callback)
 	return setState
 end
 
-local function makeModeToggle(name, icon)
+local function makeModeToggle(name, icon, layoutOrder)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
@@ -1996,6 +1997,7 @@ local function makeModeToggle(name, icon)
 	btn.BorderSizePixel = 0
 	btn.Text = ""
 	btn.AutoButtonColor = false
+	btn.LayoutOrder = layoutOrder or 0
 	btn.Parent = listFrame
 	local bC = Instance.new("UICorner")
 	bC.CornerRadius = UDim.new(0, 12)
@@ -2118,7 +2120,7 @@ local function timeStringToMinutes(str)
 	return h * 60 + m
 end
 
-local function makeTimeToggle(name, icon, key, initial)
+local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)
 	btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
@@ -2126,6 +2128,7 @@ local function makeTimeToggle(name, icon, key, initial)
 	btn.BorderSizePixel = 0
 	btn.Text = ""
 	btn.AutoButtonColor = false
+	btn.LayoutOrder = layoutOrder or 0
 	btn.Parent = listFrame
 	local bC = Instance.new("UICorner")
 	bC.CornerRadius = UDim.new(0, 12)
@@ -2190,11 +2193,12 @@ local function makeTimeToggle(name, icon, key, initial)
 
 	local panel = Instance.new("Frame")
 	panel.Name = "TimePanel"
-	panel.Size = UDim2.new(1, -8, 0, 0)
+	panel.Size = UDim2.new(1, -30, 0, 0)
 	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
+	panel.LayoutOrder = (layoutOrder or 0) + 1
 	panel.Parent = listFrame
 
 	local panelCorner = Instance.new("UICorner")
@@ -2307,12 +2311,12 @@ local function makeTimeToggle(name, icon, key, initial)
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
 			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(1, -8, 0, 100),
+				Size = UDim2.new(1, -30, 0, 100),
 			}):Play()
 		else
 			timeLockEnabled = false
 			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Size = UDim2.new(1, -8, 0, 0),
+				Size = UDim2.new(1, -30, 0, 0),
 			}):Play()
 		end
 	end
@@ -2387,12 +2391,12 @@ local function makeTimeToggle(name, icon, key, initial)
 	btn.MouseButton1Click:Connect(function() setState(not state) end)
 end
 
-makeToggle("Дождь + Звук", "🌧", "Rain", true)
-makeModeToggle("Система", "💻")
-makeTimeToggle("Время суток", "🌗", "Time", false)
-makeToggle("Аура", "✨", "Aura", true)
-makeToggle("Нимб", "👑", "Halo", true)
-makeToggle("Трейлы", "💫", "Trails", true)
+makeToggle("Дождь + Звук", "🌧", "Rain", true, nil, 1)
+makeModeToggle("Система", "💻", 2)
+makeTimeToggle("Время суток", "🌗", "Time", false, 3)
+makeToggle("Аура", "✨", "Aura", true, nil, 5)
+makeToggle("Нимб", "👑", "Halo", true, nil, 6)
+makeToggle("Трейлы", "💫", "Trails", true, nil, 7)
 makeToggle("Портал", "🌀", "Portal", false, function(state)
 	portalEnabled = state
 	portalBtn.Visible = state
@@ -2402,19 +2406,19 @@ makeToggle("Портал", "🌀", "Portal", false, function(state)
 		portalBtn.BackgroundColor3 = Color3.fromRGB(70, 20, 130)
 		clearPortals()
 	end
-end)
+end, 8)
 makeToggle("Метеорит", "🪨", "Meteor", false, function(state)
 	meteorEnabled = state
 	if meteorBtn then
 		meteorBtn.Visible = state
 	end
-end)
+end, 9)
 makeToggle("Усиление", "⚡", "Buff", false, function(state)
 	buffEnabled = state
 	if buffBtn then
 		buffBtn.Visible = state
 	end
-end)
+end, 10)
 
 portalBtn.MouseButton1Click:Connect(function()
 	if not portalEnabled then return end
@@ -2534,4 +2538,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v2 loaded")
+print("Rain Visual + Meteor + Buff + Time v3 loaded")
