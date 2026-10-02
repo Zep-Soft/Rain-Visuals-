@@ -2190,12 +2190,11 @@ local function makeTimeToggle(name, icon, key, initial)
 
 	local panel = Instance.new("Frame")
 	panel.Name = "TimePanel"
-	panel.Size = UDim2.new(1, 0, 0, 0)
+	panel.Size = UDim2.new(1, -8, 0, 0)
 	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
-	panel.LayoutOrder = btn.LayoutOrder + 1
 	panel.Parent = listFrame
 
 	local panelCorner = Instance.new("UICorner")
@@ -2308,12 +2307,12 @@ local function makeTimeToggle(name, icon, key, initial)
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
 			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(1, 0, 0, 100),
+				Size = UDim2.new(1, -8, 0, 100),
 			}):Play()
 		else
 			timeLockEnabled = false
 			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Size = UDim2.new(1, 0, 0, 0),
+				Size = UDim2.new(1, -8, 0, 0),
 			}):Play()
 		end
 	end
