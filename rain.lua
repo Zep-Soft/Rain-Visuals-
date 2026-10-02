@@ -2208,7 +2208,7 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 	local panelStroke = Instance.new("UIStroke")
 	panelStroke.Thickness = 1.5
 	panelStroke.Color = Color3.fromRGB(150, 180, 255)
-	panelStroke.Transparency = 0.4
+	panelStroke.Transparency = 1
 	panelStroke.Parent = panel
 
 	local timeLabel = Instance.new("TextButton")
@@ -2310,11 +2310,13 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 			lockedTime = Lighting.ClockTime
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
+			panelStroke.Transparency = 0.4
 			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(1, -30, 0, 100),
 			}):Play()
 		else
 			timeLockEnabled = false
+			panelStroke.Transparency = 1
 			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 				Size = UDim2.new(1, -30, 0, 0),
 			}):Play()
@@ -2538,4 +2540,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v3 loaded")
+print("Rain Visual + Meteor + Buff + Time v4 loaded")
