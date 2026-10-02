@@ -285,7 +285,6 @@ local function getTargetsInRange()
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return {} end
 	local myPos = hrp.Position
-
 	local list = {}
 	for _, other in ipairs(Players:GetPlayers()) do
 		if other ~= player then
@@ -302,9 +301,20 @@ local function getTargetsInRange()
 			end
 		end
 	end
-
+	for _, obj in ipairs(workspace:GetChildren()) do
+		if obj:IsA("Model") and obj ~= char then
+			local hum = obj:FindFirstChildOfClass("Humanoid")
+			local hrp2 = obj:FindFirstChild("HumanoidRootPart")
+			local isPlayer = Players:GetPlayerFromCharacter(obj) ~= nil
+			if hum and hrp2 and hum.Health > 0 and not isPlayer then
+				local dist = (hrp2.Position - myPos).Magnitude
+				if dist <= LINK_RANGE then
+					table.insert(list, {hrp = hrp2, dist = dist})
+				end
+			end
+		end
+	end
 	table.sort(list, function(a, b) return a.dist < b.dist end)
-
 	local result = {}
 	for i = 1, math.min(#list, MAX_TARGETS) do
 		result[i] = list[i].hrp
@@ -335,25 +345,16 @@ end)
 
 local auraT = 0
 local hackerT = 0
-
 local pulseState = nil
 
 local function triggerAuraPulse()
-	pulseState = {
-		phase = "inhale",
-		phaseTime = 0,
-		startRadius = auraRadius,
-		jitterTimer = 0,
-	}
-	for _, a in ipairs(auraParts) do
-		a.baseRadius = a.radius
-	end
+	pulseState = { phase = "inhale", phaseTime = 0, startRadius = auraRadius, jitterTimer = 0 }
+	for _, a in ipairs(auraParts) do a.baseRadius = a.radius end
 end
 
 local function updateAuraPulse(dt)
 	if not pulseState then return end
 	pulseState.phaseTime = pulseState.phaseTime + dt
-
 	if pulseState.phase == "inhale" then
 		local t = math.min(1, pulseState.phaseTime / 0.3)
 		for _, a in ipairs(auraParts) do
@@ -363,7 +364,6 @@ local function updateAuraPulse(dt)
 			pulseState.phase = "exhale"
 			pulseState.phaseTime = 0
 		end
-
 	elseif pulseState.phase == "exhale" then
 		local t = math.min(1, pulseState.phaseTime / 1.2)
 		local e = 1 - (1 - t) * (1 - t)
@@ -375,7 +375,6 @@ local function updateAuraPulse(dt)
 			pulseState.phaseTime = 0
 			pulseState.jitterTimer = 0
 		end
-
 	elseif pulseState.phase == "jitter" then
 		pulseState.jitterTimer = (pulseState.jitterTimer or 0) + dt
 		if pulseState.jitterTimer >= 0.1 then
@@ -388,7 +387,6 @@ local function updateAuraPulse(dt)
 			pulseState.phase = "return"
 			pulseState.phaseTime = 0
 		end
-
 	elseif pulseState.phase == "return" then
 		local t = math.min(1, pulseState.phaseTime / 0.5)
 		local e = t * t
@@ -416,7 +414,7 @@ RunService.RenderStepped:Connect(function(dt)
 	updateAuraPulse(dt)
 
 	local targets = {}
-	if settings.Link then
+	if settings and settings.Link then
 		targets = getTargetsInRange()
 	end
 
@@ -444,7 +442,6 @@ RunService.RenderStepped:Connect(function(dt)
 			else
 				a.linkProgress = math.max(0, a.linkProgress - dt / LINK_FLY_TIME)
 			end
-
 			if a.progress < 1 then
 				a.progress = math.min(1, a.progress + dt / 12)
 			end
@@ -463,9 +460,7 @@ RunService.RenderStepped:Connect(function(dt)
 			local tY = lZ * math.sin(tR)
 			local tZ = lZ * math.cos(tR)
 			local orbitPos = Vector3.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ)
-			local orbitCFrame = CFrame.new(orbitPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
-
-			local finalCFrame = orbitCFrame
+			local finalPos = orbitPos
 
 			if a.assignedTarget then
 				local linkStart = center + Vector3.new(0, 1.5, 0)
@@ -473,23 +468,19 @@ RunService.RenderStepped:Connect(function(dt)
 				local t = a.assignedSlot / (LINK_PER_PLAYER + 1)
 				local basePos = linkStart:Lerp(linkEnd, t)
 				local wave = math.sin(auraT * 4 - t * math.pi * 4)
-				local offset = Vector3.new(0, wave * 0.6, 0)
-				local linePos = basePos + offset
+				local linePos = basePos + Vector3.new(0, wave * 0.6, 0)
 				a.lastLinePos = linePos
-
 				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
-				local finalPos = orbitPos:Lerp(linePos, ease)
-				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+				finalPos = orbitPos:Lerp(linePos, ease)
 			elseif a.lastLinePos and a.linkProgress > 0 then
 				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
-				local finalPos = orbitPos:Lerp(a.lastLinePos, ease)
-				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+				finalPos = orbitPos:Lerp(a.lastLinePos, ease)
 				if a.linkProgress <= 0 then
 					a.lastLinePos = nil
 				end
 			end
 
-			a.part.CFrame = finalCFrame
+			a.part.CFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
 			a.part.Transparency = 0.1
 			a.part.Size = Vector3.new(auraSize, auraSize, auraSize)
 			a.hue = (a.hue + dt * 0.3) % 1
@@ -503,13 +494,6 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	else
 		for _, a in ipairs(auraParts) do
-			local shouldLink = a.assignedTarget ~= nil
-			if shouldLink then
-				a.linkProgress = math.min(1, a.linkProgress + dt / LINK_FLY_TIME)
-			else
-				a.linkProgress = math.max(0, a.linkProgress - dt / LINK_FLY_TIME)
-			end
-
 			a.hackerSpawnTime = a.hackerSpawnTime + dt
 			local cycle = 0.5 + (a.hackerPhase % 0.7)
 			if a.hackerSpawnTime >= cycle then
@@ -534,34 +518,7 @@ RunService.RenderStepped:Connect(function(dt)
 			local tZ = lZ * math.cos(tR)
 			local flash = 0.5 + 0.5 * math.sin(hackerT * 12 + a.hackerPhase)
 			local flicker = math.random() > 0.85 and 0.2 or 1
-			local orbitPos = Vector3.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ)
-			local orbitCFrame = CFrame.new(orbitPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
-
-			local finalCFrame = orbitCFrame
-
-			if a.assignedTarget then
-				local linkStart = center + Vector3.new(0, 1.5, 0)
-				local linkEnd = a.assignedTarget.Position + Vector3.new(0, 1.5, 0)
-				local t = a.assignedSlot / (LINK_PER_PLAYER + 1)
-				local basePos = linkStart:Lerp(linkEnd, t)
-				local lj = math.sin(hackerT * 30 + a.hackerPhase) * 0.4
-				local lg = math.sin(hackerT * 60 + a.assignedSlot) * 0.2
-				local linePos = basePos + Vector3.new(lj, lg, lj * 0.5)
-				a.lastLinePos = linePos
-
-				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
-				local finalPos = orbitPos:Lerp(linePos, ease)
-				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
-			elseif a.lastLinePos and a.linkProgress > 0 then
-				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
-				local finalPos = orbitPos:Lerp(a.lastLinePos, ease)
-				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
-				if a.linkProgress <= 0 then
-					a.lastLinePos = nil
-				end
-			end
-
-			a.part.CFrame = finalCFrame
+			a.part.CFrame = CFrame.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
 			a.part.Transparency = 1 - a.hackerAlpha * 0.95 * flicker
 			a.part.Size = Vector3.new(
 				auraSize * (0.7 + flash * 0.6 + glitch * 0.2),
@@ -569,11 +526,7 @@ RunService.RenderStepped:Connect(function(dt)
 				auraSize * (0.7 + flash * 0.6 + glitch * 0.2)
 			)
 			local greenVal = 0.3 + flash * 0.7
-			local color = Color3.fromRGB(
-				math.floor(20 * flash),
-				math.floor(255 * greenVal),
-				math.floor(40 * flash)
-			)
+			local color = Color3.fromRGB(math.floor(20 * flash), math.floor(255 * greenVal), math.floor(40 * flash))
 			a.part.Color = color
 			a.light.Color = color
 			a.light.Brightness = 3 * a.hackerAlpha * flicker
@@ -797,8 +750,7 @@ local function createPortal(position)
 	innerCore.CanCollide = false
 	innerCore.CanTouch = false
 	innerCore.CanQuery = false
-	innerCore.Massless = true
-	innerCore.Material = Enum.Material.Neon
+	innerCore.Massless = true	innerCore.Material = Enum.Material.Neon
 	innerCore.Color = Color3.fromRGB(220, 180, 255)
 	innerCore.Transparency = 0.2
 	innerCore.CFrame = CFrame.new(position)
@@ -2682,4 +2634,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v10 loaded")
+print("Rain Visual + Meteor + Buff + Time v10 FIXED loaded")
