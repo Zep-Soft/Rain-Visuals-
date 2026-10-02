@@ -406,8 +406,8 @@ local function updateAuraPulse(dt)
 end
 
 RunService.RenderStepped:Connect(function(dt)
-	auraT = (auraT + dt) % (math.pi * 2)
-	hackerT = (hackerT + dt) % (math.pi * 2)
+	auraT = auraT + dt
+	hackerT = hackerT + dt
 	local char = player.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -456,7 +456,7 @@ RunService.RenderStepped:Connect(function(dt)
 			a.tilt = a.startTilt + (a.targetTilt - a.startTilt) * e
 			a.height = a.startHeight + (a.targetHeight - a.startHeight) * e
 			a.speed = a.startSpeed + (a.targetSpeed - a.startSpeed) * e
-			local angle = a.angle + auraT * a.speed
+			local angle = (a.angle + auraT * a.speed) % (math.pi * 2)
 			local tR = math.rad(a.tilt)
 			local lX = math.cos(angle) * a.radius
 			local lZ = math.sin(angle) * a.radius
@@ -526,7 +526,7 @@ RunService.RenderStepped:Connect(function(dt)
 			end
 			local jitter = math.sin(hackerT * 15 + a.hackerPhase) * a.hackerJitter
 			local glitch = math.sin(hackerT * 30 + a.hackerPhase * 2)
-			local moveAngle = a.angle + hackerT * a.hackerSpeed
+			local moveAngle = (a.angle + hackerT * a.hackerSpeed) % (math.pi * 2)
 			local tR = math.rad(a.tilt)
 			local lX = math.cos(moveAngle) * (a.hackerRadius + jitter)
 			local lZ = math.sin(moveAngle) * (a.hackerRadius + jitter)
@@ -631,7 +631,7 @@ end
 local haloT = 0
 
 RunService.RenderStepped:Connect(function(dt)
-	haloT = (haloT + dt) % (math.pi * 2)
+	haloT = haloT + dt
 	local char = player.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1575,7 +1575,7 @@ local function triggerBuff()
 	end)
 end
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = true }
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = false }
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -2538,7 +2538,7 @@ makeToggle("Дождь + Звук", "🌧", "Rain", true, nil, 1)
 makeModeToggle("Система", "💻", 2)
 makeTimeToggle("Время суток", "🌗", "Time", false, 3)
 makeToggle("Аура", "✨", "Aura", true, nil, 5)
-makeToggle("Цепление", "🔗", "Link", true, nil, 6)
+makeToggle("Цепление", "🔗", "Link", false, nil, 6)
 makeToggle("Нимб", "👑", "Halo", true, nil, 7)
 makeToggle("Трейлы", "💫", "Trails", true, nil, 8)
 makeToggle("Портал", "🌀", "Portal", false, function(state)
@@ -2682,4 +2682,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v8 loaded")
+print("Rain Visual + Meteor + Buff + Time v9 loaded")
