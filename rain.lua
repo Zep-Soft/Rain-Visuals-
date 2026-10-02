@@ -207,6 +207,10 @@ auraFolder.Parent = workspace.CurrentCamera
 local auraCount = 40
 local auraSize = 0.4
 local auraRadius = 3.2
+local LINK_RANGE = 40
+local LINK_PER_PLAYER = 10
+local MAX_TARGETS = 4
+local LINK_FLY_TIME = 0.6
 
 local function makeTrail(p, size)
 	local a0 = Instance.new("Attachment")
@@ -268,7 +272,44 @@ for i = 1, auraCount do
 		hackerRadius = auraRadius + (math.random() - 0.5) * 1.5,
 		hackerJitter = math.random() * 0.3,
 		hackerSpeed = math.random(0.8, 2.5),
+		linkProgress = 0,
+		assignedTarget = nil,
+		assignedSlot = 0,
+		lastLinePos = nil,
 	})
+end
+
+local function getTargetsInRange()
+	local char = player.Character
+	if not char then return {} end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return {} end
+	local myPos = hrp.Position
+
+	local list = {}
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			local otherChar = other.Character
+			if otherChar then
+				local otherHrp = otherChar:FindFirstChild("HumanoidRootPart")
+				local otherHum = otherChar:FindFirstChildOfClass("Humanoid")
+				if otherHrp and otherHum and otherHum.Health > 0 then
+					local dist = (otherHrp.Position - myPos).Magnitude
+					if dist <= LINK_RANGE then
+						table.insert(list, {hrp = otherHrp, dist = dist})
+					end
+				end
+			end
+		end
+	end
+
+	table.sort(list, function(a, b) return a.dist < b.dist end)
+
+	local result = {}
+	for i = 1, math.min(#list, MAX_TARGETS) do
+		result[i] = list[i].hrp
+	end
+	return result
 end
 
 task.spawn(function()
@@ -373,8 +414,34 @@ RunService.RenderStepped:Connect(function(dt)
 	if not hrp then return end
 	local center = hrp.Position
 	updateAuraPulse(dt)
+
+	local targets = getTargetsInRange()
+
+	for _, a in ipairs(auraParts) do
+		a.assignedTarget = nil
+		a.assignedSlot = 0
+	end
+
+	for targetIndex, targetHrp in ipairs(targets) do
+		local basePartIndex = (targetIndex - 1) * LINK_PER_PLAYER
+		for slot = 1, LINK_PER_PLAYER do
+			local idx = basePartIndex + slot
+			if auraParts[idx] then
+				auraParts[idx].assignedTarget = targetHrp
+				auraParts[idx].assignedSlot = slot
+			end
+		end
+	end
+
 	if currentMode == "Rainbow" then
 		for _, a in ipairs(auraParts) do
+			local shouldLink = a.assignedTarget ~= nil
+			if shouldLink then
+				a.linkProgress = math.min(1, a.linkProgress + dt / LINK_FLY_TIME)
+			else
+				a.linkProgress = math.max(0, a.linkProgress - dt / LINK_FLY_TIME)
+			end
+
 			if a.progress < 1 then
 				a.progress = math.min(1, a.progress + dt / 12)
 			end
@@ -392,7 +459,34 @@ RunService.RenderStepped:Connect(function(dt)
 			local lZ = math.sin(angle) * a.radius
 			local tY = lZ * math.sin(tR)
 			local tZ = lZ * math.cos(tR)
-			a.part.CFrame = CFrame.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+			local orbitPos = Vector3.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ)
+			local orbitCFrame = CFrame.new(orbitPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+
+			local finalCFrame = orbitCFrame
+
+			if a.assignedTarget then
+				local linkStart = center + Vector3.new(0, 1.5, 0)
+				local linkEnd = a.assignedTarget.Position + Vector3.new(0, 1.5, 0)
+				local t = a.assignedSlot / (LINK_PER_PLAYER + 1)
+				local basePos = linkStart:Lerp(linkEnd, t)
+				local wave = math.sin(auraT * 4 - t * math.pi * 4)
+				local offset = Vector3.new(0, wave * 0.6, 0)
+				local linePos = basePos + offset
+				a.lastLinePos = linePos
+
+				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
+				local finalPos = orbitPos:Lerp(linePos, ease)
+				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+			elseif a.lastLinePos and a.linkProgress > 0 then
+				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
+				local finalPos = orbitPos:Lerp(a.lastLinePos, ease)
+				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(auraT * a.spinSpeed, auraT * a.spinSpeed, 0)
+				if a.linkProgress <= 0 then
+					a.lastLinePos = nil
+				end
+			end
+
+			a.part.CFrame = finalCFrame
 			a.part.Transparency = 0.1
 			a.part.Size = Vector3.new(auraSize, auraSize, auraSize)
 			a.hue = (a.hue + dt * 0.3) % 1
@@ -406,6 +500,13 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	else
 		for _, a in ipairs(auraParts) do
+			local shouldLink = a.assignedTarget ~= nil
+			if shouldLink then
+				a.linkProgress = math.min(1, a.linkProgress + dt / LINK_FLY_TIME)
+			else
+				a.linkProgress = math.max(0, a.linkProgress - dt / LINK_FLY_TIME)
+			end
+
 			a.hackerSpawnTime = a.hackerSpawnTime + dt
 			local cycle = 0.5 + (a.hackerPhase % 0.7)
 			if a.hackerSpawnTime >= cycle then
@@ -430,7 +531,34 @@ RunService.RenderStepped:Connect(function(dt)
 			local tZ = lZ * math.cos(tR)
 			local flash = 0.5 + 0.5 * math.sin(hackerT * 12 + a.hackerPhase)
 			local flicker = math.random() > 0.85 and 0.2 or 1
-			a.part.CFrame = CFrame.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
+			local orbitPos = Vector3.new(center.X + lX, center.Y + tY + a.height, center.Z + tZ)
+			local orbitCFrame = CFrame.new(orbitPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
+
+			local finalCFrame = orbitCFrame
+
+			if a.assignedTarget then
+				local linkStart = center + Vector3.new(0, 1.5, 0)
+				local linkEnd = a.assignedTarget.Position + Vector3.new(0, 1.5, 0)
+				local t = a.assignedSlot / (LINK_PER_PLAYER + 1)
+				local basePos = linkStart:Lerp(linkEnd, t)
+				local lj = math.sin(hackerT * 30 + a.hackerPhase) * 0.4
+				local lg = math.sin(hackerT * 60 + a.assignedSlot) * 0.2
+				local linePos = basePos + Vector3.new(lj, lg, lj * 0.5)
+				a.lastLinePos = linePos
+
+				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
+				local finalPos = orbitPos:Lerp(linePos, ease)
+				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
+			elseif a.lastLinePos and a.linkProgress > 0 then
+				local ease = 0.5 - 0.5 * math.cos(a.linkProgress * math.pi)
+				local finalPos = orbitPos:Lerp(a.lastLinePos, ease)
+				finalCFrame = CFrame.new(finalPos) * CFrame.Angles(hackerT * 4 * a.spinSpeed, hackerT * 4 * a.spinSpeed, 0)
+				if a.linkProgress <= 0 then
+					a.lastLinePos = nil
+				end
+			end
+
+			a.part.CFrame = finalCFrame
 			a.part.Transparency = 1 - a.hackerAlpha * 0.95 * flicker
 			a.part.Size = Vector3.new(
 				auraSize * (0.7 + flash * 0.6 + glitch * 0.2),
@@ -1328,8 +1456,7 @@ local function runMeteor()
 	local blackFrame = Instance.new("Frame")
 	blackFrame.Size = UDim2.fromScale(1, 1)
 	blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	blackFrame.BackgroundTransparency = 0
-	blackFrame.BorderSizePixel = 0
+	blackFrame.BackgroundTransparency = 0	blackFrame.BorderSizePixel = 0
 	blackFrame.Parent = blackGui
 	task.wait(2)
 	TweenService:Create(blackFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
