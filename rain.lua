@@ -406,8 +406,8 @@ local function updateAuraPulse(dt)
 end
 
 RunService.RenderStepped:Connect(function(dt)
-	auraT = auraT + dt
-	hackerT = hackerT + dt
+	auraT = (auraT + dt) % (math.pi * 2)
+	hackerT = (hackerT + dt) % (math.pi * 2)
 	local char = player.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -415,7 +415,10 @@ RunService.RenderStepped:Connect(function(dt)
 	local center = hrp.Position
 	updateAuraPulse(dt)
 
-	local targets = getTargetsInRange()
+	local targets = {}
+	if settings.Link then
+		targets = getTargetsInRange()
+	end
 
 	for _, a in ipairs(auraParts) do
 		a.assignedTarget = nil
@@ -628,7 +631,7 @@ end
 local haloT = 0
 
 RunService.RenderStepped:Connect(function(dt)
-	haloT = haloT + dt
+	haloT = (haloT + dt) % (math.pi * 2)
 	local char = player.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1456,7 +1459,8 @@ local function runMeteor()
 	local blackFrame = Instance.new("Frame")
 	blackFrame.Size = UDim2.fromScale(1, 1)
 	blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	blackFrame.BackgroundTransparency = 0	blackFrame.BorderSizePixel = 0
+	blackFrame.BackgroundTransparency = 0
+	blackFrame.BorderSizePixel = 0
 	blackFrame.Parent = blackGui
 	task.wait(2)
 	TweenService:Create(blackFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1571,7 +1575,7 @@ local function triggerBuff()
 	end)
 end
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false }
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false, Link = true }
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -1585,7 +1589,7 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 9
+local NUM_BUTTONS = 10
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
@@ -2534,8 +2538,9 @@ makeToggle("Дождь + Звук", "🌧", "Rain", true, nil, 1)
 makeModeToggle("Система", "💻", 2)
 makeTimeToggle("Время суток", "🌗", "Time", false, 3)
 makeToggle("Аура", "✨", "Aura", true, nil, 5)
-makeToggle("Нимб", "👑", "Halo", true, nil, 6)
-makeToggle("Трейлы", "💫", "Trails", true, nil, 7)
+makeToggle("Цепление", "🔗", "Link", true, nil, 6)
+makeToggle("Нимб", "👑", "Halo", true, nil, 7)
+makeToggle("Трейлы", "💫", "Trails", true, nil, 8)
 makeToggle("Портал", "🌀", "Portal", false, function(state)
 	portalEnabled = state
 	portalBtn.Visible = state
@@ -2545,19 +2550,19 @@ makeToggle("Портал", "🌀", "Portal", false, function(state)
 		portalBtn.BackgroundColor3 = Color3.fromRGB(70, 20, 130)
 		clearPortals()
 	end
-end, 8)
+end, 9)
 makeToggle("Метеорит", "🪨", "Meteor", false, function(state)
 	meteorEnabled = state
 	if meteorBtn then
 		meteorBtn.Visible = state
 	end
-end, 9)
+end, 10)
 makeToggle("Усиление", "⚡", "Buff", false, function(state)
 	buffEnabled = state
 	if buffBtn then
 		buffBtn.Visible = state
 	end
-end, 10)
+end, 11)
 
 portalBtn.MouseButton1Click:Connect(function()
 	if not portalEnabled then return end
@@ -2677,4 +2682,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v7 loaded")
+print("Rain Visual + Meteor + Buff + Time v8 loaded")
