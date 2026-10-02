@@ -2191,15 +2191,25 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 	sL.Font = Enum.Font.GothamBold
 	sL.Parent = sF
 
+	local panelHolder = Instance.new("Frame")
+	panelHolder.Name = "TimePanelHolder"
+	panelHolder.Size = UDim2.new(1, 0, 0, 0)
+	panelHolder.BackgroundTransparency = 1
+	panelHolder.BorderSizePixel = 0
+	panelHolder.ClipsDescendants = false
+	panelHolder.LayoutOrder = (layoutOrder or 0) + 1
+	panelHolder.Parent = listFrame
+
 	local panel = Instance.new("Frame")
 	panel.Name = "TimePanel"
-	panel.Size = UDim2.new(1, -30, 0, 0)
+	panel.AnchorPoint = Vector2.new(0.5, 0)
+	panel.Position = UDim2.new(0.5, 0, 0, 0)
+	panel.Size = UDim2.new(1, -30, 0, 100)
 	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
-	panel.LayoutOrder = (layoutOrder or 0) + 1
-	panel.Parent = listFrame
+	panel.Parent = panelHolder
 
 	local panelCorner = Instance.new("UICorner")
 	panelCorner.CornerRadius = UDim.new(0, 12)
@@ -2311,14 +2321,14 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
 			panelStroke.Transparency = 0.4
-			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(1, -30, 0, 100),
+			TweenService:Create(panelHolder, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(1, 0, 0, 100),
 			}):Play()
 		else
 			timeLockEnabled = false
 			panelStroke.Transparency = 1
-			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Size = UDim2.new(1, -30, 0, 0),
+			TweenService:Create(panelHolder, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Size = UDim2.new(1, 0, 0, 0),
 			}):Play()
 		end
 	end
@@ -2540,4 +2550,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v4 loaded")
+print("Rain Visual + Meteor + Buff + Time v5 loaded")
