@@ -2196,7 +2196,7 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 	panelHolder.Size = UDim2.new(1, 0, 0, 0)
 	panelHolder.BackgroundTransparency = 1
 	panelHolder.BorderSizePixel = 0
-	panelHolder.ClipsDescendants = false
+	panelHolder.ClipsDescendants = true
 	panelHolder.LayoutOrder = (layoutOrder or 0) + 1
 	panelHolder.Parent = listFrame
 
@@ -2205,6 +2205,7 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 	panel.AnchorPoint = Vector2.new(0.5, 0)
 	panel.Position = UDim2.new(0.5, 0, 0, 0)
 	panel.Size = UDim2.new(1, -30, 0, 100)
+	panel.Visible = false
 	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
@@ -2320,6 +2321,7 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 			lockedTime = Lighting.ClockTime
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
+			panel.Visible = true
 			panelStroke.Transparency = 0.4
 			TweenService:Create(panelHolder, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(1, 0, 0, 100),
@@ -2327,9 +2329,13 @@ local function makeTimeToggle(name, icon, key, initial, layoutOrder)
 		else
 			timeLockEnabled = false
 			panelStroke.Transparency = 1
-			TweenService:Create(panelHolder, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			local tw = TweenService:Create(panelHolder, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 				Size = UDim2.new(1, 0, 0, 0),
-			}):Play()
+			})
+			tw:Play()
+			tw.Completed:Connect(function()
+				panel.Visible = false
+			end)
 		end
 	end
 
@@ -2550,4 +2556,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v5 loaded")
+print("Rain Visual + Meteor + Buff + Time v6 loaded")
