@@ -456,7 +456,7 @@ RunService.RenderStepped:Connect(function(dt)
 			a.tilt = a.startTilt + (a.targetTilt - a.startTilt) * e
 			a.height = a.startHeight + (a.targetHeight - a.startHeight) * e
 			a.speed = a.startSpeed + (a.targetSpeed - a.startSpeed) * e
-			local angle = (a.angle + auraT * a.speed) % (math.pi * 2)
+			local angle = a.angle + auraT * a.speed
 			local tR = math.rad(a.tilt)
 			local lX = math.cos(angle) * a.radius
 			local lZ = math.sin(angle) * a.radius
@@ -526,7 +526,7 @@ RunService.RenderStepped:Connect(function(dt)
 			end
 			local jitter = math.sin(hackerT * 15 + a.hackerPhase) * a.hackerJitter
 			local glitch = math.sin(hackerT * 30 + a.hackerPhase * 2)
-			local moveAngle = (a.angle + hackerT * a.hackerSpeed) % (math.pi * 2)
+			local moveAngle = a.angle + hackerT * a.hackerSpeed
 			local tR = math.rad(a.tilt)
 			local lX = math.cos(moveAngle) * (a.hackerRadius + jitter)
 			local lZ = math.sin(moveAngle) * (a.hackerRadius + jitter)
@@ -756,8 +756,7 @@ local function createPortal(position)
 	local coreSphere = Instance.new("Part")
 	coreSphere.Shape = Enum.PartType.Ball
 	coreSphere.Size = Vector3.new(PORTAL_RADIUS * 1.9, PORTAL_RADIUS * 1.9, PORTAL_RADIUS * 1.9)
-	coreSphere.Anchored = true
-	coreSphere.CanCollide = false
+	coreSphere.Anchored = true	coreSphere.CanCollide = false
 	coreSphere.CanTouch = false
 	coreSphere.CanQuery = false
 	coreSphere.Massless = true
@@ -2682,4 +2681,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time v9 loaded")
+print("Rain Visual + Meteor + Buff + Time v10 loaded")
