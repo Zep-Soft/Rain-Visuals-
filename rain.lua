@@ -1985,7 +1985,7 @@ local function makeToggle(name, icon, key, initial, callback)
 		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.6}):Play()
 	end)
 	btn.MouseButton1Click:Connect(function() setState(not state) end)
-	return setState, btn
+	return setState
 end
 
 local function makeModeToggle(name, icon)
@@ -2078,7 +2078,6 @@ local function makeModeToggle(name, icon)
 		end
 		sL.Text = newMode
 	end)
-	return btn
 end
 
 local lockedTime = nil
@@ -2191,16 +2190,13 @@ local function makeTimeToggle(name, icon, key, initial)
 
 	local panel = Instance.new("Frame")
 	panel.Name = "TimePanel"
-	panel.AnchorPoint = Vector2.new(0, 0)
-	panel.Position = UDim2.new(0, 14, 0, HEADER_HEIGHT + 12 + BTN_HEIGHT + PADDING + 100)
-	panel.Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 0)
+	panel.Size = UDim2.new(1, 0, 0, 0)
 	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
 	panel.ClipsDescendants = true
-	panel.Visible = false
-	panel.ZIndex = 50
-	panel.Parent = mainFrame
+	panel.LayoutOrder = btn.LayoutOrder + 1
+	panel.Parent = listFrame
 
 	local panelCorner = Instance.new("UICorner")
 	panelCorner.CornerRadius = UDim.new(0, 12)
@@ -2223,7 +2219,6 @@ local function makeTimeToggle(name, icon, key, initial)
 	timeLabel.TextSize = 26
 	timeLabel.Font = Enum.Font.GothamBold
 	timeLabel.AutoButtonColor = false
-	timeLabel.ZIndex = 51
 	timeLabel.Parent = panel
 
 	local timeInput = Instance.new("TextBox")
@@ -2240,7 +2235,6 @@ local function makeTimeToggle(name, icon, key, initial)
 	timeInput.Font = Enum.Font.GothamBold
 	timeInput.ClearTextOnFocus = false
 	timeInput.Visible = false
-	timeInput.ZIndex = 52
 	timeInput.Parent = panel
 
 	local sliderBg = Instance.new("Frame")
@@ -2250,7 +2244,6 @@ local function makeTimeToggle(name, icon, key, initial)
 	sliderBg.Size = UDim2.new(1, -40, 0, 8)
 	sliderBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
 	sliderBg.BorderSizePixel = 0
-	sliderBg.ZIndex = 51
 	sliderBg.Parent = panel
 
 	local sliderBgCorner = Instance.new("UICorner")
@@ -2262,7 +2255,6 @@ local function makeTimeToggle(name, icon, key, initial)
 	sliderFill.Size = UDim2.new(0, 0, 1, 0)
 	sliderFill.BackgroundColor3 = Color3.fromRGB(150, 180, 255)
 	sliderFill.BorderSizePixel = 0
-	sliderFill.ZIndex = 51
 	sliderFill.Parent = sliderBg
 
 	local sliderFillCorner = Instance.new("UICorner")
@@ -2278,7 +2270,6 @@ local function makeTimeToggle(name, icon, key, initial)
 	sliderKnob.BorderSizePixel = 0
 	sliderKnob.Text = ""
 	sliderKnob.AutoButtonColor = false
-	sliderKnob.ZIndex = 53
 	sliderKnob.Parent = sliderBg
 
 	local sliderKnobCorner = Instance.new("UICorner")
@@ -2316,20 +2307,14 @@ local function makeTimeToggle(name, icon, key, initial)
 			lockedTime = Lighting.ClockTime
 			currentMinutes = math.floor(lockedTime * 60) % 1440
 			updateVisualsFromMinutes()
-			panel.Position = UDim2.new(0, 14, 0, HEADER_HEIGHT + 12 + BTN_HEIGHT + PADDING)
-			panel.Visible = true
 			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 100),
+				Size = UDim2.new(1, 0, 0, 100),
 			}):Play()
 		else
 			timeLockEnabled = false
-			local tw = TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 0),
-			})
-			tw:Play()
-			tw.Completed:Connect(function()
-				panel.Visible = false
-			end)
+			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Size = UDim2.new(1, 0, 0, 0),
+			}):Play()
 		end
 	end
 
@@ -2550,4 +2535,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff + Time loaded")
+print("Rain Visual + Meteor + Buff + Time v2 loaded")
