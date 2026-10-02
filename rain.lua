@@ -1444,7 +1444,7 @@ local function triggerBuff()
 	end)
 end
 
-local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false }
+local settings = { Rain = true, Aura = true, Halo = true, Trails = true, Portal = false, Meteor = false, Buff = false, Time = false }
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -1458,7 +1458,7 @@ screenGui.Parent = pg
 local BTN_HEIGHT = 52
 local PADDING = 10
 local HEADER_HEIGHT = 56
-local NUM_BUTTONS = 8
+local NUM_BUTTONS = 9
 local FRAME_WIDTH = 320
 
 local contentHeight = 4 + 12 + NUM_BUTTONS * BTN_HEIGHT + (NUM_BUTTONS - 1) * PADDING
@@ -1985,7 +1985,7 @@ local function makeToggle(name, icon, key, initial, callback)
 		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.6}):Play()
 	end)
 	btn.MouseButton1Click:Connect(function() setState(not state) end)
-	return setState
+	return setState, btn
 end
 
 local function makeModeToggle(name, icon)
@@ -2078,10 +2078,334 @@ local function makeModeToggle(name, icon)
 		end
 		sL.Text = newMode
 	end)
+	return btn
+end
+
+local lockedTime = nil
+local timeLockEnabled = false
+
+Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	if timeLockEnabled and lockedTime then
+		if math.abs(Lighting.ClockTime - lockedTime) > 0.01 then
+			Lighting.ClockTime = lockedTime
+		end
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if timeLockEnabled and lockedTime then
+			if math.abs(Lighting.ClockTime - lockedTime) > 0.01 then
+				Lighting.ClockTime = lockedTime
+			end
+		end
+	end
+end)
+
+local function minutesToTimeString(totalMinutes)
+	local h = math.floor(totalMinutes / 60) % 24
+	local m = totalMinutes % 60
+	return string.format("%02d:%02d", h, m)
+end
+
+local function timeStringToMinutes(str)
+	local h, m = string.match(str, "^(%d+):(%d+)$")
+	if not h or not m then return nil end
+	h = tonumber(h)
+	m = tonumber(m)
+	if not h or not m then return nil end
+	if h < 0 or h > 23 or m < 0 or m > 59 then return nil end
+	return h * 60 + m
+end
+
+local function makeTimeToggle(name, icon, key, initial)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, BTN_HEIGHT)
+	btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+	btn.BackgroundTransparency = 0.1
+	btn.BorderSizePixel = 0
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.Parent = listFrame
+	local bC = Instance.new("UICorner")
+	bC.CornerRadius = UDim.new(0, 12)
+	bC.Parent = btn
+	local bS = Instance.new("UIStroke")
+	bS.Thickness = 1.5
+	bS.Color = Color3.fromRGB(150, 180, 255)
+	bS.Transparency = 0.6
+	bS.Parent = btn
+	local iB = Instance.new("Frame")
+	iB.AnchorPoint = Vector2.new(0, 0.5)
+	iB.Position = UDim2.new(0, 12, 0.5, 0)
+	iB.Size = UDim2.new(0, 34, 0, 34)
+	iB.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+	iB.BackgroundTransparency = 0.2
+	iB.BorderSizePixel = 0
+	iB.Parent = btn
+	local iC = Instance.new("UICorner")
+	iC.CornerRadius = UDim.new(0, 10)
+	iC.Parent = iB
+	local iL = Instance.new("TextLabel")
+	iL.Size = UDim2.new(1, 0, 1, 0)
+	iL.BackgroundTransparency = 1
+	iL.Text = icon
+	iL.TextScaled = true
+	iL.Font = Enum.Font.GothamBold
+	iL.Parent = iB
+	local lbl = Instance.new("TextLabel")
+	lbl.AnchorPoint = Vector2.new(0, 0.5)
+	lbl.Position = UDim2.new(0, 58, 0.5, 0)
+	lbl.Size = UDim2.new(0.5, 0, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = name
+	lbl.TextColor3 = Color3.fromRGB(235, 235, 245)
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextSize = 15
+	lbl.Font = Enum.Font.GothamMedium
+	lbl.Parent = btn
+	local sF = Instance.new("Frame")
+	sF.AnchorPoint = Vector2.new(1, 0.5)
+	sF.Position = UDim2.new(1, -12, 0.5, 0)
+	sF.Size = UDim2.new(0, 66, 0, 32)
+	sF.BackgroundColor3 = initial and Color3.fromRGB(60, 180, 100) or Color3.fromRGB(180, 60, 80)
+	sF.BorderSizePixel = 0
+	sF.Parent = btn
+	local sC = Instance.new("UICorner")
+	sC.CornerRadius = UDim.new(0, 10)
+	sC.Parent = sF
+	local sS = Instance.new("UIStroke")
+	sS.Thickness = 1.5
+	sS.Color = initial and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 130, 150)
+	sS.Transparency = 0.4
+	sS.Parent = sF
+	local sL = Instance.new("TextLabel")
+	sL.Size = UDim2.new(1, 0, 1, 0)
+	sL.BackgroundTransparency = 1
+	sL.Text = initial and "ON" or "OFF"
+	sL.TextColor3 = Color3.fromRGB(255, 255, 255)
+	sL.TextSize = 14
+	sL.Font = Enum.Font.GothamBold
+	sL.Parent = sF
+
+	local panel = Instance.new("Frame")
+	panel.Name = "TimePanel"
+	panel.AnchorPoint = Vector2.new(0, 0)
+	panel.Position = UDim2.new(0, 14, 0, HEADER_HEIGHT + 12 + BTN_HEIGHT + PADDING + 100)
+	panel.Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 0)
+	panel.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+	panel.BackgroundTransparency = 0.05
+	panel.BorderSizePixel = 0
+	panel.ClipsDescendants = true
+	panel.Visible = false
+	panel.ZIndex = 50
+	panel.Parent = mainFrame
+
+	local panelCorner = Instance.new("UICorner")
+	panelCorner.CornerRadius = UDim.new(0, 12)
+	panelCorner.Parent = panel
+
+	local panelStroke = Instance.new("UIStroke")
+	panelStroke.Thickness = 1.5
+	panelStroke.Color = Color3.fromRGB(150, 180, 255)
+	panelStroke.Transparency = 0.4
+	panelStroke.Parent = panel
+
+	local timeLabel = Instance.new("TextButton")
+	timeLabel.Name = "TimeLabel"
+	timeLabel.AnchorPoint = Vector2.new(0.5, 0)
+	timeLabel.Position = UDim2.new(0.5, 0, 0, 12)
+	timeLabel.Size = UDim2.new(1, -20, 0, 32)
+	timeLabel.BackgroundTransparency = 1
+	timeLabel.Text = "00:00"
+	timeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	timeLabel.TextSize = 26
+	timeLabel.Font = Enum.Font.GothamBold
+	timeLabel.AutoButtonColor = false
+	timeLabel.ZIndex = 51
+	timeLabel.Parent = panel
+
+	local timeInput = Instance.new("TextBox")
+	timeInput.Name = "TimeInput"
+	timeInput.AnchorPoint = Vector2.new(0.5, 0)
+	timeInput.Position = UDim2.new(0.5, 0, 0, 12)
+	timeInput.Size = UDim2.new(1, -20, 0, 32)
+	timeInput.BackgroundTransparency = 1
+	timeInput.Text = ""
+	timeInput.PlaceholderText = "ЧЧ:ММ"
+	timeInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+	timeInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 180)
+	timeInput.TextSize = 26
+	timeInput.Font = Enum.Font.GothamBold
+	timeInput.ClearTextOnFocus = false
+	timeInput.Visible = false
+	timeInput.ZIndex = 52
+	timeInput.Parent = panel
+
+	local sliderBg = Instance.new("Frame")
+	sliderBg.Name = "SliderBg"
+	sliderBg.AnchorPoint = Vector2.new(0.5, 0)
+	sliderBg.Position = UDim2.new(0.5, 0, 0, 60)
+	sliderBg.Size = UDim2.new(1, -40, 0, 8)
+	sliderBg.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+	sliderBg.BorderSizePixel = 0
+	sliderBg.ZIndex = 51
+	sliderBg.Parent = panel
+
+	local sliderBgCorner = Instance.new("UICorner")
+	sliderBgCorner.CornerRadius = UDim.new(0, 4)
+	sliderBgCorner.Parent = sliderBg
+
+	local sliderFill = Instance.new("Frame")
+	sliderFill.Name = "SliderFill"
+	sliderFill.Size = UDim2.new(0, 0, 1, 0)
+	sliderFill.BackgroundColor3 = Color3.fromRGB(150, 180, 255)
+	sliderFill.BorderSizePixel = 0
+	sliderFill.ZIndex = 51
+	sliderFill.Parent = sliderBg
+
+	local sliderFillCorner = Instance.new("UICorner")
+	sliderFillCorner.CornerRadius = UDim.new(0, 4)
+	sliderFillCorner.Parent = sliderFill
+
+	local sliderKnob = Instance.new("TextButton")
+	sliderKnob.Name = "SliderKnob"
+	sliderKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+	sliderKnob.Position = UDim2.new(0, 0, 0.5, 0)
+	sliderKnob.Size = UDim2.new(0, 20, 0, 20)
+	sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	sliderKnob.BorderSizePixel = 0
+	sliderKnob.Text = ""
+	sliderKnob.AutoButtonColor = false
+	sliderKnob.ZIndex = 53
+	sliderKnob.Parent = sliderBg
+
+	local sliderKnobCorner = Instance.new("UICorner")
+	sliderKnobCorner.CornerRadius = UDim.new(0, 10)
+	sliderKnobCorner.Parent = sliderKnob
+
+	local sliderKnobStroke = Instance.new("UIStroke")
+	sliderKnobStroke.Thickness = 2
+	sliderKnobStroke.Color = Color3.fromRGB(150, 180, 255)
+	sliderKnobStroke.Parent = sliderKnob
+
+	local state = initial
+	local currentMinutes = 0
+	local dragging = false
+
+	local function updateVisualsFromMinutes()
+		local timeStr = minutesToTimeString(currentMinutes)
+		timeLabel.Text = timeStr
+		local t = currentMinutes / 1439
+		sliderKnob.Position = UDim2.new(t, 0, 0.5, 0)
+		sliderFill.Size = UDim2.new(t, 0, 1, 0)
+		Lighting.ClockTime = currentMinutes / 60
+	end
+
+	local function setState(newState)
+		state = newState
+		settings[key] = state
+		local info = TweenInfo.new(0.25)
+		TweenService:Create(sF, info, {BackgroundColor3 = state and Color3.fromRGB(60, 180, 100) or Color3.fromRGB(180, 60, 80)}):Play()
+		TweenService:Create(sS, info, {Color = state and Color3.fromRGB(120, 255, 160) or Color3.fromRGB(255, 130, 150)}):Play()
+		sL.Text = state and "ON" or "OFF"
+
+		if state then
+			timeLockEnabled = true
+			lockedTime = Lighting.ClockTime
+			currentMinutes = math.floor(lockedTime * 60) % 1440
+			updateVisualsFromMinutes()
+			panel.Position = UDim2.new(0, 14, 0, HEADER_HEIGHT + 12 + BTN_HEIGHT + PADDING)
+			panel.Visible = true
+			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 100),
+			}):Play()
+		else
+			timeLockEnabled = false
+			local tw = TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Size = UDim2.new(0, FRAME_WIDTH - 28, 0, 0),
+			})
+			tw:Play()
+			tw.Completed:Connect(function()
+				panel.Visible = false
+			end)
+		end
+	end
+
+	local function setKnobFromInput(inputX, bgAbsX, bgWidth)
+		local relX = inputX - bgAbsX
+		local t = math.clamp(relX / bgWidth, 0, 1)
+		currentMinutes = math.floor(t * 1439)
+		updateVisualsFromMinutes()
+		lockedTime = Lighting.ClockTime
+	end
+
+	sliderKnob.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+		end
+	end)
+
+	sliderBg.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			local bgAbsX = sliderBg.AbsolutePosition.X
+			local bgWidth = sliderBg.AbsoluteSize.X
+			setKnobFromInput(input.Position.X, bgAbsX, bgWidth)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local bgAbsX = sliderBg.AbsolutePosition.X
+			local bgWidth = sliderBg.AbsoluteSize.X
+			setKnobFromInput(input.Position.X, bgAbsX, bgWidth)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	timeLabel.MouseButton1Click:Connect(function()
+		timeLabel.Visible = false
+		timeInput.Text = minutesToTimeString(currentMinutes)
+		timeInput.Visible = true
+		timeInput:CaptureFocus()
+	end)
+
+	timeInput.FocusLost:Connect(function()
+		local parsed = timeStringToMinutes(timeInput.Text)
+		if parsed then
+			currentMinutes = parsed
+			updateVisualsFromMinutes()
+			lockedTime = Lighting.ClockTime
+		else
+			currentMinutes = 12 * 60
+			updateVisualsFromMinutes()
+			lockedTime = Lighting.ClockTime
+		end
+		timeInput.Visible = false
+		timeLabel.Visible = true
+	end)
+
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
+		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.1, BackgroundColor3 = Color3.fromRGB(22, 22, 32)}):Play()
+		TweenService:Create(bS, TweenInfo.new(0.15), {Transparency = 0.6}):Play()
+	end)
+	btn.MouseButton1Click:Connect(function() setState(not state) end)
 end
 
 makeToggle("Дождь + Звук", "🌧", "Rain", true)
 makeModeToggle("Система", "💻")
+makeTimeToggle("Время суток", "🌗", "Time", false)
 makeToggle("Аура", "✨", "Aura", true)
 makeToggle("Нимб", "👑", "Halo", true)
 makeToggle("Трейлы", "💫", "Trails", true)
@@ -2226,4 +2550,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual + Meteor + Buff loaded")
+print("Rain Visual + Meteor + Buff + Time loaded")
