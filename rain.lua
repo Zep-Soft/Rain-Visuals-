@@ -1508,19 +1508,19 @@ local function triggerBuff()
 	end)
 end
 
--- ===========================================================
--- FIREBALL TOOL (по кнопке, авто-возврат в инвентарь)
--- ===========================================================
 local fbBackpack = player:WaitForChild("Backpack")
 local FB_COOLDOWN = 1.2
+local FB_CHARGE_MAX = 2.0
 local fbIsOnCooldown = false
 local fbEnabled = false
+local fbCharging = false
+local fbChargeStart = 0
 
 local fireTool = Instance.new("Tool")
-fireTool.Name = "🔥 Огненный шар"
+fireTool.Name = "Огненный шар"
 fireTool.RequiresHandle = true
 fireTool.CanBeDropped = false
-fireTool.ToolTip = "Тапни куда кинуть"
+fireTool.ToolTip = "Зажми чтобы зарядить"
 
 local fireHandle = Instance.new("Part")
 fireHandle.Name = "Handle"
@@ -1531,6 +1531,104 @@ fireHandle.Massless = true
 fireHandle.Parent = fireTool
 
 fireTool.Parent = nil
+
+local chargeGui = Instance.new("ScreenGui")
+chargeGui.Name = "ChargeGui"
+chargeGui.ResetOnSpawn = false
+chargeGui.IgnoreGuiInset = true
+chargeGui.DisplayOrder = 200
+chargeGui.Parent = player:WaitForChild("PlayerGui")
+
+local chargeBarBg = Instance.new("Frame")
+chargeBarBg.Name = "ChargeBarBg"
+chargeBarBg.AnchorPoint = Vector2.new(0.5, 0.5)
+chargeBarBg.Position = UDim2.new(0.5, 0, 0.75, 0)
+chargeBarBg.Size = UDim2.new(0, 320, 0, 22)
+chargeBarBg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+chargeBarBg.BackgroundTransparency = 0.15
+chargeBarBg.BorderSizePixel = 0
+chargeBarBg.Visible = false
+chargeBarBg.Parent = chargeGui
+
+local chargeBarBgCorner = Instance.new("UICorner")
+chargeBarBgCorner.CornerRadius = UDim.new(1, 0)
+chargeBarBgCorner.Parent = chargeBarBg
+
+local chargeBarBgStroke = Instance.new("UIStroke")
+chargeBarBgStroke.Thickness = 2
+chargeBarBgStroke.Color = Color3.fromRGB(255, 200, 100)
+chargeBarBgStroke.Transparency = 0.3
+chargeBarBgStroke.Parent = chargeBarBg
+
+local chargeBarFill = Instance.new("Frame")
+chargeBarFill.Name = "ChargeBarFill"
+chargeBarFill.AnchorPoint = Vector2.new(0, 0.5)
+chargeBarFill.Position = UDim2.new(0, 4, 0.5, 0)
+chargeBarFill.Size = UDim2.new(0, 0, 1, -8)
+chargeBarFill.BackgroundColor3 = Color3.fromRGB(255, 100, 30)
+chargeBarFill.BorderSizePixel = 0
+chargeBarFill.Parent = chargeBarBg
+
+local chargeBarFillCorner = Instance.new("UICorner")
+chargeBarFillCorner.CornerRadius = UDim.new(1, 0)
+chargeBarFillCorner.Parent = chargeBarFill
+
+local chargeBarGrad = Instance.new("UIGradient")
+chargeBarGrad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 30)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 60)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 200)),
+})
+chargeBarGrad.Rotation = 0
+chargeBarGrad.Parent = chargeBarFill
+
+local chargeText = Instance.new("TextLabel")
+chargeText.Name = "ChargeText"
+chargeText.AnchorPoint = Vector2.new(0.5, 0.5)
+chargeText.Position = UDim2.new(0.5, 0, 0.5, 0)
+chargeText.Size = UDim2.new(1, 0, 1, 0)
+chargeText.BackgroundTransparency = 1
+chargeText.Text = ""
+chargeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+chargeText.TextSize = 14
+chargeText.Font = Enum.Font.GothamBold
+chargeText.ZIndex = 5
+chargeText.Parent = chargeBarBg
+
+local chargeTextStroke = Instance.new("UIStroke")
+chargeTextStroke.Thickness = 2
+chargeTextStroke.Color = Color3.fromRGB(0, 0, 0)
+chargeTextStroke.Transparency = 0.3
+chargeTextStroke.Parent = chargeText
+
+local function updateChargeBar(progress)
+	local maxWidth = chargeBarBg.AbsoluteSize.X - 8
+	chargeBarFill.Size = UDim2.new(0, maxWidth * progress, 1, -8)
+
+	local percent = math.floor(progress * 100)
+	chargeText.Text = percent .. "%"
+
+	if progress > 0.99 then
+		chargeText.Text = "MAX!"
+		chargeText.TextColor3 = Color3.fromRGB(255, 255, 200)
+	elseif progress > 0.66 then
+		chargeText.TextColor3 = Color3.fromRGB(255, 220, 100)
+	elseif progress > 0.33 then
+		chargeText.TextColor3 = Color3.fromRGB(255, 180, 60)
+	else
+		chargeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	end
+end
+
+local function showChargeBar()
+	chargeBarBg.Visible = true
+	chargeBarFill.Size = UDim2.new(0, 0, 1, -8)
+	chargeText.Text = "0%"
+end
+
+local function hideChargeBar()
+	chargeBarBg.Visible = false
+end
 
 local fbOrbFolder = Instance.new("Folder")
 fbOrbFolder.Name = "EnergyOrb"
@@ -1634,7 +1732,7 @@ fbProjectileFolder.Parent = workspace
 
 local fbT = 0
 
-local function fbCreateExplosion(position)
+local function fbCreateExplosionCharged(position, count, distance)
 	local explosionFolder = Instance.new("Folder")
 	explosionFolder.Parent = workspace
 
@@ -1650,18 +1748,21 @@ local function fbCreateExplosion(position)
 
 	local flashLight = Instance.new("PointLight")
 	flashLight.Color = Color3.fromRGB(255, 200, 100)
-	flashLight.Range = 35
-	flashLight.Brightness = 15
+	flashLight.Range = 35 + distance
+	flashLight.Brightness = 15 + count / 50
 	flashLight.Parent = lightPart
 
 	TweenService:Create(flashLight, TweenInfo.new(1.2), {
 		Brightness = 0,
-		Range = 70,
+		Range = 70 + distance * 2,
 	}):Play()
 
-	for batch = 1, 5 do
+	local partsPerBatch = math.max(1, math.floor(count / 5))
+	local batches = math.ceil(count / partsPerBatch)
+
+	for batch = 1, batches do
 		task.delay((batch - 1) * 0.02, function()
-			for i = 1, 50 do
+			for i = 1, partsPerBatch do
 				local p = Instance.new("Part")
 				p.Shape = Enum.PartType.Ball
 				p.Size = Vector3.new(0.3, 0.3, 0.3)
@@ -1692,7 +1793,7 @@ local function fbCreateExplosion(position)
 				).Unit
 
 				TweenService:Create(p, TweenInfo.new(1.2 + math.random() * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Position = position + dir * (15 + math.random() * 25),
+					Position = position + dir * (distance * 0.7 + math.random() * distance * 0.3),
 					Transparency = 1,
 					Size = Vector3.new(0.03, 0.03, 0.03),
 				}):Play()
@@ -1808,7 +1909,7 @@ local function fbCreateFireballVisual(position)
 	}
 end
 
-local function fbLaunchFireball(targetPos)
+local function fbLaunchFireballCharged(targetPos, charge)
 	local char = player.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1825,8 +1926,25 @@ local function fbLaunchFireball(targetPos)
 	local direction = (targetPos - startPos).Unit
 	local fb = fbCreateFireballVisual(startPos)
 
-	local speed = 80
-	local maxDist = 300
+	local speed = 60 + charge * 120
+	local maxDist = 200 + charge * 400
+	local explosionCount = math.floor(100 + charge * 400)
+	local explosionDist = 15 + charge * 45
+	local ballSize = 0.7 + charge * 1.3
+	local lightRange = 12 + charge * 20
+	local lightBrightness = 5 + charge * 8
+
+	fb.core.Size = Vector3.new(ballSize, ballSize, ballSize)
+	fb.mid.Size = Vector3.new(ballSize * 2.3, ballSize * 2.3, ballSize * 2.3)
+	fb.halo.Size = Vector3.new(ballSize * 3.4, ballSize * 3.4, ballSize * 3.4)
+
+	for _, s in ipairs(fb.sphereParts) do
+		s.baseRadius = s.baseRadius * (0.8 + charge * 1.5)
+	end
+
+	fb.light.Range = lightRange
+	fb.light.Brightness = lightBrightness
+
 	local travelled = 0
 	local alive = true
 	local fireballT = 0
@@ -1848,7 +1966,7 @@ local function fbLaunchFireball(targetPos)
 		if travelled > maxDist then
 			alive = false
 			conn:Disconnect()
-			fbCreateExplosion(currentPos)
+			fbCreateExplosionCharged(currentPos, explosionCount, explosionDist)
 			fb.group:Destroy()
 			return
 		end
@@ -1857,7 +1975,7 @@ local function fbLaunchFireball(targetPos)
 		if rayResult then
 			alive = false
 			conn:Disconnect()
-			fbCreateExplosion(rayResult.Position)
+			fbCreateExplosionCharged(rayResult.Position, explosionCount, explosionDist)
 			fb.group:Destroy()
 			return
 		end
@@ -1867,9 +1985,9 @@ local function fbLaunchFireball(targetPos)
 		fb.halo.CFrame = CFrame.new(nextPos)
 
 		local pulse = 1 + math.sin(fireballT * 12) * 0.12
-		fb.core.Size = Vector3.new(0.7, 0.7, 0.7) * pulse
-		fb.mid.Size = Vector3.new(1.6, 1.6, 1.6) * pulse
-		fb.halo.Size = Vector3.new(2.4, 2.4, 2.4) * pulse
+		fb.core.Size = Vector3.new(ballSize, ballSize, ballSize) * pulse
+		fb.mid.Size = Vector3.new(ballSize * 2.3, ballSize * 2.3, ballSize * 2.3) * pulse
+		fb.halo.Size = Vector3.new(ballSize * 3.4, ballSize * 3.4, ballSize * 3.4) * pulse
 
 		fb.core.Color = Color3.fromHSV((fireballT * 0.08) % 0.1 + 0.1, 0.5, 1)
 		fb.mid.Color = Color3.fromHSV((fireballT * 0.08) % 0.12 + 0.08, 0.85, 1)
@@ -1896,6 +2014,13 @@ local function fbLaunchFireball(targetPos)
 			s.part.Transparency = 0.1 + (1 - flicker) * 0.3
 		end
 	end)
+
+	local pushback = charge
+	local backVec = -direction * pushback * 60
+	hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity + backVec
+
+	local upPush = pushback * 25
+	hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity + Vector3.new(0, upPush, 0)
 end
 
 local function fbGetMouseWorldTarget()
@@ -1914,42 +2039,69 @@ local function fbGetMouseWorldTarget()
 	else return unitRay.Origin + unitRay.Direction * 500 end
 end
 
-fireTool.Activated:Connect(function()
-	if not fbEnabled then return end
-	if fbIsOnCooldown then return end
-	if fireTool.Parent ~= player.Character then return end
-
-	local targetPos = fbGetMouseWorldTarget()
-	fbLaunchFireball(targetPos)
-
-	fbIsOnCooldown = true
-	fbOrbFolder.Parent = nil
-
-	task.delay(FB_COOLDOWN, function()
-		fbIsOnCooldown = false
-		if fireTool.Parent == player.Character and fbEnabled then
-			fbOrbFolder.Parent = camera
-		end
-	end)
-end)
-
-fireTool.Equipped:Connect(function()
+fireTool.Equipped:Connect(function(mouse)
 	if not fbEnabled then return end
 	if not fbIsOnCooldown then
 		fbOrbFolder.Parent = camera
 	end
+
+	mouse.Button1Down:Connect(function()
+		if not fbEnabled then return end
+		if fbIsOnCooldown then return end
+		if fireTool.Parent ~= player.Character then return end
+
+		fbCharging = true
+		fbChargeStart = tick()
+		showChargeBar()
+	end)
+
+	mouse.Button1Up:Connect(function()
+		if not fbCharging then return end
+		if not fbEnabled then
+			fbCharging = false
+			hideChargeBar()
+			return
+		end
+
+		local elapsed = tick() - fbChargeStart
+		local charge = math.min(1, elapsed / FB_CHARGE_MAX)
+
+		fbCharging = false
+		hideChargeBar()
+
+		if elapsed < 0.05 then return end
+
+		local targetPos = fbGetMouseWorldTarget()
+		fbLaunchFireballCharged(targetPos, charge)
+
+		fbIsOnCooldown = true
+		fbOrbFolder.Parent = nil
+
+		task.delay(FB_COOLDOWN, function()
+			fbIsOnCooldown = false
+			if fireTool.Parent == player.Character and fbEnabled then
+				fbOrbFolder.Parent = camera
+			end
+		end)
+	end)
 end)
 
 fireTool.Unequipped:Connect(function()
 	fbOrbFolder.Parent = nil
+	if fbCharging then
+		fbCharging = false
+		hideChargeBar()
+	end
 end)
 
--- авто-возврат Tool в Backpack (если игра удалила)
 task.spawn(function()
 	while true do
-		task.wait(0.5)
+		task.wait(0.3)
 		if fbEnabled then
-			if fireTool.Parent == nil or fireTool.Parent ~= fbBackpack and fireTool.Parent ~= player.Character then
+			local p = fireTool.Parent
+			if p == nil then
+				fireTool.Parent = fbBackpack
+			elseif p ~= fbBackpack and p ~= player.Character then
 				fireTool.Parent = fbBackpack
 			end
 		else
@@ -1960,9 +2112,14 @@ task.spawn(function()
 	end
 end)
 
--- рендер шара в руке
 RunService.RenderStepped:Connect(function(dt)
 	fbT = fbT + dt
+
+	if fbCharging then
+		local elapsed = tick() - fbChargeStart
+		local progress = math.min(1, elapsed / FB_CHARGE_MAX)
+		updateChargeBar(progress)
+	end
 
 	if not fbEnabled then return end
 	if fireTool.Parent ~= player.Character then return end
@@ -1975,25 +2132,32 @@ RunService.RenderStepped:Connect(function(dt)
 	if not rightHand then return end
 
 	local handPos = rightHand.Position + Vector3.new(0, 1, 0) + rightHand.CFrame.LookVector * 1.2
+	local chargeBoost = 1
+	if fbCharging then
+		local elapsed = tick() - fbChargeStart
+		local progress = math.min(1, elapsed / FB_CHARGE_MAX)
+		chargeBoost = 1 + progress * 1.5
+	end
+
 	local pulse = 1 + math.sin(fbT * 6) * 0.12
 
-	fbCore.Size = Vector3.new(0.7, 0.7, 0.7) * pulse
+	fbCore.Size = Vector3.new(0.7, 0.7, 0.7) * pulse * chargeBoost
 	fbCore.CFrame = CFrame.new(handPos)
 	fbCore.Color = Color3.fromHSV((fbT * 0.08) % 0.1 + 0.1, 0.5, 1)
 
-	fbMidCore.Size = Vector3.new(1.6, 1.6, 1.6) * pulse
+	fbMidCore.Size = Vector3.new(1.6, 1.6, 1.6) * pulse * chargeBoost
 	fbMidCore.CFrame = CFrame.new(handPos)
 	fbMidCore.Color = Color3.fromHSV((fbT * 0.08) % 0.12 + 0.08, 0.85, 1)
 
-	fbHalo.Size = Vector3.new(2.4, 2.4, 2.4) * pulse
+	fbHalo.Size = Vector3.new(2.4, 2.4, 2.4) * pulse * chargeBoost
 	fbHalo.CFrame = CFrame.new(handPos)
 	fbHalo.Color = Color3.fromHSV((fbT * 0.08) % 0.1 + 0.05, 1, 1)
 	fbHalo.Transparency = 0.88 + math.sin(fbT * 8) * 0.04
 
 	fbCoreLight.Color = fbCore.Color
 	fbHaloLight.Color = fbHalo.Color
-	fbCoreLight.Brightness = 5 + math.sin(fbT * 10) * 1
-	fbHaloLight.Brightness = 2.5 + math.sin(fbT * 12) * 0.5
+	fbCoreLight.Brightness = (5 + math.sin(fbT * 10) * 1) * chargeBoost
+	fbHaloLight.Brightness = (2.5 + math.sin(fbT * 12) * 0.5) * chargeBoost
 
 	for _, s in ipairs(fbSphereParts) do
 		local turbX = math.sin(fbT * s.turbSpeedX + s.turbPhaseX) * s.turbAmp
@@ -2001,7 +2165,7 @@ RunService.RenderStepped:Connect(function(dt)
 		local turbZ = math.sin(fbT * s.turbSpeedZ + s.turbPhaseZ) * s.turbAmp
 		local pulseR = math.sin(fbT * s.pulseSpeed + s.pulsePhase) * s.pulseAmp
 
-		local r = s.baseRadius + turbX + pulseR
+		local r = (s.baseRadius + turbX + pulseR) * chargeBoost
 		local angle = s.theta
 
 		local px = handPos.X + r * math.sin(s.phi) * math.cos(angle)
@@ -2016,10 +2180,6 @@ RunService.RenderStepped:Connect(function(dt)
 		s.part.Transparency = 0.1 + (1 - flicker) * 0.3
 	end
 end)
-
------------------------------------------------------------
--- UI
------------------------------------------------------------
 
 local pg = player:WaitForChild("PlayerGui")
 
@@ -3011,6 +3171,10 @@ makeToggle("Огненный шар", "🔥", "Fireball", false, function(state)
 		fireTool.Parent = nil
 		fbOrbFolder.Parent = nil
 		fbIsOnCooldown = false
+		if fbCharging then
+			fbCharging = false
+			hideChargeBar()
+		end
 	end
 end, 12)
 
@@ -3132,4 +3296,4 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-print("Rain Visual v11 + Fireball loaded")
+print("Rain Visual v11 + Charged Fireball loaded")
