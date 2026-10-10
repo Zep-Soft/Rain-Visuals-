@@ -857,15 +857,10 @@ local function tryPlacePortal(input)
 	if isPlayerMoving() then return end
 	if isCameraRotating() then return end
 
-	-- ВАЖНО: используем GetMouseLocation() вместо input.Position
-	-- GetMouseLocation() возвращает viewport space (то, что нужно ViewportPointToRay)
-	-- input.Position возвращает screen space (со сдвигом GUI-инсета) — это и была причина смещения
 	local mouseLocation = UserInputService:GetMouseLocation()
 	local unitRay = camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
 
 	local char = player.Character
-
-	-- char целиком в фильтре — дети исключаются автоматически
 	local filterList = {portalFolder, camera}
 	if char then
 		table.insert(filterList, char)
@@ -877,7 +872,6 @@ local function tryPlacePortal(input)
 
 	local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 2000, rayParams)
 
-	-- если не попали в BasePart — ставим портал в точку под курсором (как фаербол)
 	local pos
 	if result and result.Instance and result.Instance:IsA("BasePart") then
 		pos = result.Position + result.Normal * 0.5
@@ -2027,9 +2021,12 @@ local function fbLaunchFireballCharged(targetPos, charge)
 	hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity + Vector3.new(0, upPush, 0)
 end
 
-local function fbGetMouseWorldTarget()
-	local mouseLocation = UserInputService:GetMouseLocation()
-	local unitRay = camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
+-- ============================================
+-- ФИКС: поддержка тача для телефона
+-- ============================================
+local function fbGetMouseWorldTarget(touchPos)
+	local pos = touchPos or UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(pos.X, pos.Y)
 
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -2049,46 +2046,86 @@ fireTool.Equipped:Connect(function(mouse)
 		fbOrbFolder.Parent = camera
 	end
 
-	mouse.Button1Down:Connect(function()
-		if not fbEnabled then return end
-		if fbIsOnCooldown then return end
-		if fireTool.Parent ~= player.Character then return end
+	-- Для ПК (мышь)
+	if mouse then
+		mouse.Button1Down:Connect(function()
+			if not fbEnabled then return end
+			if fbIsOnCooldown then return end
+			if fireTool.Parent ~= player.Character then return end
+			fbCharging = true
+			fbChargeStart = tick()
+			showChargeBar()
+		end)
 
-		fbCharging = true
-		fbChargeStart = tick()
-		showChargeBar()
-	end)
+		mouse.Button1Up:Connect(function()
+			if not fbCharging then return end
+			if not fbEnabled then
+				fbCharging = false
+				hideChargeBar()
+				return
+			end
 
-	mouse.Button1Up:Connect(function()
-		if not fbCharging then return end
-		if not fbEnabled then
+			local elapsed = tick() - fbChargeStart
+			local charge = math.min(1, elapsed / FB_CHARGE_MAX)
 			fbCharging = false
 			hideChargeBar()
-			return
-		end
+			if elapsed < 0.05 then return end
 
-		local elapsed = tick() - fbChargeStart
-		local charge = math.min(1, elapsed / FB_CHARGE_MAX)
+			local targetPos = fbGetMouseWorldTarget()
+			fbLaunchFireballCharged(targetPos, charge)
 
+			fbIsOnCooldown = true
+			fbOrbFolder.Parent = nil
+
+			task.delay(FB_COOLDOWN, function()
+				fbIsOnCooldown = false
+				if fireTool.Parent == player.Character and fbEnabled then
+					fbOrbFolder.Parent = camera
+				end
+			end)
+		end)
+	end
+end)
+
+-- Для телефона (тач) — отдельно от Equipped
+UserInputService.TouchStarted:Connect(function(input, gp)
+	if gp then return end
+	if not fbEnabled then return end
+	if fbIsOnCooldown then return end
+	if fireTool.Parent ~= player.Character then return end
+	fbCharging = true
+	fbChargeStart = tick()
+	showChargeBar()
+end)
+
+UserInputService.TouchEnded:Connect(function(input, gp)
+	if not fbCharging then return end
+	if not fbEnabled then
 		fbCharging = false
 		hideChargeBar()
+		return
+	end
 
-		if elapsed < 0.05 then return end
+	local elapsed = tick() - fbChargeStart
+	local charge = math.min(1, elapsed / FB_CHARGE_MAX)
+	fbCharging = false
+	hideChargeBar()
+	if elapsed < 0.05 then return end
 
-		local targetPos = fbGetMouseWorldTarget()
-		fbLaunchFireballCharged(targetPos, charge)
+	local targetPos = fbGetMouseWorldTarget(input.Position)
+	fbLaunchFireballCharged(targetPos, charge)
 
-		fbIsOnCooldown = true
-		fbOrbFolder.Parent = nil
+	fbIsOnCooldown = true
+	fbOrbFolder.Parent = nil
 
-		task.delay(FB_COOLDOWN, function()
-			fbIsOnCooldown = false
-			if fireTool.Parent == player.Character and fbEnabled then
-				fbOrbFolder.Parent = camera
-			end
-		end)
+	task.delay(FB_COOLDOWN, function()
+		fbIsOnCooldown = false
+		if fireTool.Parent == player.Character and fbEnabled then
+			fbOrbFolder.Parent = camera
+		end
 	end)
 end)
+-- ============================================
 
 fireTool.Unequipped:Connect(function()
 	fbOrbFolder.Parent = nil
