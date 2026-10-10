@@ -848,30 +848,27 @@ local function isCameraRotating()
 	return diff > cameraRotationThreshold
 end
 
+-- ============================================
+-- ФИКС: точное позиционирование портала
+-- ============================================
 local function tryPlacePortal(input)
 	if not portalEnabled or not placingMode then return end
 	if tick() - lastPlaceTime < 0.3 then return end
 	if isPlayerMoving() then return end
 	if isCameraRotating() then return end
 
-	local inputPos
-	if input then
-		inputPos = input.Position
-	else
-		inputPos = UserInputService:GetMouseLocation()
-	end
+	-- ВАЖНО: используем GetMouseLocation() вместо input.Position
+	-- GetMouseLocation() возвращает viewport space (то, что нужно ViewportPointToRay)
+	-- input.Position возвращает screen space (со сдвигом GUI-инсета) — это и была причина смещения
+	local mouseLocation = UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(mouseLocation.X, mouseLocation.Y)
 
-	local inset = GuiService:GetGuiInset()
-	local screenPos = Vector2.new(inputPos.X, inputPos.Y - inset.Y)
-	local unitRay = camera:ViewportPointToRay(screenPos.X, screenPos.Y)
 	local char = player.Character
 
+	-- char целиком в фильтре — дети исключаются автоматически
 	local filterList = {portalFolder, camera}
 	if char then
 		table.insert(filterList, char)
-		for _, child in ipairs(char:GetChildren()) do
-			table.insert(filterList, child)
-		end
 	end
 
 	local rayParams = RaycastParams.new()
@@ -879,8 +876,14 @@ local function tryPlacePortal(input)
 	rayParams.FilterDescendantsInstances = filterList
 
 	local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 2000, rayParams)
-	if not result or not result.Instance or not result.Instance:IsA("BasePart") then return end
-	local pos = result.Position + result.Normal * 0.5
+
+	-- если не попали в BasePart — ставим портал в точку под курсором (как фаербол)
+	local pos
+	if result and result.Instance and result.Instance:IsA("BasePart") then
+		pos = result.Position + result.Normal * 0.5
+	else
+		pos = unitRay.Origin + unitRay.Direction * 50
+	end
 
 	if #portals >= 2 then
 		destroyPortal(portals[1])
@@ -892,6 +895,7 @@ local function tryPlacePortal(input)
 	lastPlaceTime = tick()
 	playTeleportSound()
 end
+-- ============================================
 
 local function createTeleportEffect(position)
 	local effectFolder = Instance.new("Folder")
